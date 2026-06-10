@@ -1,0 +1,55 @@
+// Formátovanie: dátumy D.M.YYYY, sumy 1 234,56 €
+
+export function toIsoDate(d) {
+  if (!d) return ''
+  if (/^\d{4}-\d{2}-\d{2}/.test(d)) return d.substring(0, 10)
+  const dt = new Date(d)
+  return isNaN(dt.getTime()) ? '' : dt.toISOString().split('T')[0]
+}
+
+export function fmtDate(d) {
+  const iso = toIsoDate(d)
+  if (!iso) return '—'
+  const dt = new Date(iso + 'T12:00:00')
+  return dt.getDate() + '.' + (dt.getMonth() + 1) + '.' + dt.getFullYear()
+}
+
+export function fmtMoney(v) {
+  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.'))
+  if (isNaN(n)) return '—'
+  return n.toLocaleString('sk-SK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
+}
+
+export function parseNum(v) {
+  const n = typeof v === 'number' ? v : parseFloat(String(v ?? '').replace(',', '.'))
+  return isNaN(n) ? 0 : n
+}
+
+// Stavy projektov: kód v tabuľke -> text v rozhraní.
+// Staré hodnoty (Aktívny/Dokončený/Zrušený) sa zobrazujú správne až do migrácie.
+export const PROJECT_STATUSES = [
+  { value: 'priprava', label: 'Príprava' },
+  { value: 'vyroba', label: 'Výroba' },
+  { value: 'montaz', label: 'Montáž' },
+  { value: 'odovzdany', label: 'Odovzdaný' },
+  { value: 'uzavrety', label: 'Uzavretý' },
+  { value: 'zruseny', label: 'Zrušený' },
+]
+
+const LEGACY_STATUS = { 'Aktívny': 'vyroba', 'Dokončený': 'odovzdany', 'Zrušený': 'zruseny' }
+
+export function normalizeStatus(s) {
+  if (LEGACY_STATUS[s]) return LEGACY_STATUS[s]
+  return PROJECT_STATUSES.some(x => x.value === s) ? s : 'vyroba'
+}
+
+export function statusLabel(s) {
+  const norm = normalizeStatus(s)
+  return PROJECT_STATUSES.find(x => x.value === norm)?.label ?? s
+}
+
+// Bežiaci projekt = nie je uzavretý ani zrušený
+export function isRunningStatus(s) {
+  const norm = normalizeStatus(s)
+  return norm !== 'uzavrety' && norm !== 'zruseny'
+}
