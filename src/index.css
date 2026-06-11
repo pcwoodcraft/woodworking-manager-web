@@ -223,3 +223,103 @@ button { font: inherit; cursor: pointer; }
 
 .no-access { padding: 48px; text-align: center; color: var(--text-2); }
 .no-access h2 { color: var(--text); margin-bottom: 8px; }
+
+/* ── Filter bar ──────────────────────────────────────────── */
+.filter-bar { display: flex; gap: 10px; margin-bottom: 16px; }
+.filter-search { flex: 1; max-width: 360px; }
+
+input, select, textarea {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--text);
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--gold-soft); border-color: var(--gold); }
+input:disabled { background: var(--paper); color: var(--text-2); }
+
+/* ── Tabuľka klikateľná ──────────────────────────────────── */
+.table-click tbody tr { cursor: pointer; }
+.table-click tbody tr:hover td { background: #faf8f3; }
+.strong { font-weight: 600; }
+.prewrap { white-space: pre-wrap; }
+.breadcrumb { font-size: 13px; color: var(--text-2); margin-bottom: 6px; }
+.breadcrumb a { color: var(--text-2); }
+.head-actions { display: flex; gap: 10px; align-items: center; }
+.stat-value-sm { margin: 8px 0 6px; }
+
+/* ── Záložky ─────────────────────────────────────────────── */
+.tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--border); margin-bottom: 18px; }
+.tab {
+  background: none; border: none;
+  padding: 9px 16px;
+  font-weight: 600;
+  color: var(--text-2);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); border-bottom-color: var(--gold); }
+
+/* ── Stavový select ──────────────────────────────────────── */
+.status-select { font-weight: 600; }
+
+/* ── Modál ───────────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(28, 26, 21, 0.55);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 8vh 16px 16px;
+  z-index: 50;
+}
+.modal {
+  background: var(--card);
+  border-radius: 12px;
+  width: 540px;
+  max-width: 100%;
+  max-height: 84vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+.modal-wide { width: 760px; }
+.modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-head h2 { font-size: 17px; }
+.modal-x { background: none; border: none; font-size: 24px; line-height: 1; color: var(--text-2); }
+.modal-x:hover { color: var(--text); }
+.modal-body { padding: 18px 22px; overflow-y: auto; }
+.modal-foot {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--border);
+}
+
+.btn-secondary { background: var(--paper); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--border); }
+.btn:disabled { opacity: 0.6; cursor: default; }
+
+/* ── Formuláre ───────────────────────────────────────────── */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field > span { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+.span-2 { grid-column: span 2; }
+
+/* ── Toast ───────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: 24px; left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: #f1ecdf;
+  padding: 11px 22px;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  z-index: 200;
+  animation: toast-in 0.25s ease;
+}
+.toast-err { background: var(--red); color: #fff; }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }
