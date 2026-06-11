@@ -15,7 +15,7 @@ export default function Projects() {
   const [customers, setCustomers] = useState([])
   const [statusFilter, setStatusFilter] = useState('bezici')
   const [search, setSearch] = useState('')
-  const [form, setForm] = useState(null) // null | 'new'
+  const [form, setForm] = useState(null) // null | 'new' | projekt na úpravu
 
   const load = async () => {
     setState({ loading: true, error: null })
@@ -78,7 +78,7 @@ export default function Projects() {
         ) : (
           <table className="table table-click">
             <thead>
-              <tr><th>Projekt</th><th>Zákazník</th><th>Stav</th><th>Termín</th><th className="num">Cena</th></tr>
+              <tr><th>Projekt</th><th>Zákazník</th><th>Stav</th><th>Termín</th><th className="num">Cena</th>{canWrite && <th />}</tr>
             </thead>
             <tbody>
               {visible.map(p => (
@@ -88,6 +88,15 @@ export default function Projects() {
                   <td><StatusBadge status={p.status} /></td>
                   <td>{fmtDate(p.deadline)}</td>
                   <td className="num">{fmtMoney(p.price)}</td>
+                  {canWrite && (
+                    <td className="row-action">
+                      <button
+                        className="icon-btn"
+                        title="Upraviť projekt"
+                        onClick={(e) => { e.stopPropagation(); setForm(p) }}
+                      >✎</button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -95,8 +104,9 @@ export default function Projects() {
         )}
       </div>
 
-      {form === 'new' && (
+      {form && (
         <ProjectForm
+          project={form === 'new' ? null : form}
           customers={customers}
           onClose={() => setForm(null)}
           onSaved={() => { setForm(null); load() }}

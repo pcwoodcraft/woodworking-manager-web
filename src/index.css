@@ -323,3 +323,25 @@ input:disabled { background: var(--paper); color: var(--text-2); }
 }
 .toast-err { background: var(--red); color: #fff; }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }
+
+/* ── Hlavička karty s akciou, malé tlačidlá ──────────────── */
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.card-head h2 { margin-bottom: 0; }
+.btn-group { display: flex; gap: 8px; }
+.btn-sm { padding: 5px 12px; font-size: 13px; }
+.icon-btn {
+  background: none; border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 9px;
+  color: var(--text-2);
+  font-size: 14px;
+}
+.icon-btn:hover { color: var(--text); border-color: var(--gold); }
+.row-action { width: 48px; text-align: right; }
+
+/* ── Hodiny: rozbaľovacie riadky pracovníkov ─────────────── */
+.worker-row { cursor: pointer; }
+.worker-row:hover td { background: #faf8f3; }
+.caret { display: inline-block; width: 14px; color: var(--gold); }
+.task-row td { background: #fbfaf7; color: var(--text-2); }
+.task-row .task-name { padding-left: 34px; }

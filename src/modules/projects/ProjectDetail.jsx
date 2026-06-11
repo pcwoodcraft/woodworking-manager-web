@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { apiCall } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox, StatusBadge } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import ProjectForm from './ProjectForm'
+import { MaterialForm, IncomingInvoiceForm, IssuedInvoiceForm, AssignInvoiceModal } from './CostForms'
 import {
   fmtMoney, fmtDate, parseNum, toIsoDate,
   PROJECT_STATUSES, normalizeStatus, statusLabel,
@@ -15,20 +16,52 @@ const CONFIRM_STATUSES = {
   zruseny: 'Naozaj označiť projekt ako zrušený?',
 }
 
+const fmtH = (h) => h.toLocaleString('sk-SK', { maximumFractionDigits: 1 })
+
+// Hodiny zoskupené: pracovník -> činnosť -> súčet hodín a mzdových nákladov
+function groupEntries(entries) {
+  const workers = new Map()
+  entries.forEach(e => {
+    const name = e.employeeName || 'Nezaradené záznamy'
+    if (!workers.has(name)) workers.set(name, { hours: 0, cost: 0, tasks: new Map() })
+    const w = workers.get(name)
+    const h = parseNum(e.durationMin) / 60
+    const c = parseNum(e.laborCost)
+    w.hours += h
+    w.cost += c
+    const task = e.task || '—'
+    if (!w.tasks.has(task)) w.tasks.set(task, { hours: 0, cost: 0, count: 0 })
+    const t = w.tasks.get(task)
+    t.hours += h
+    t.cost += c
+    t.count += 1
+  })
+  return [...workers.entries()]
+    .map(([name, w]) => ({
+      name, hours: w.hours, cost: w.cost,
+      tasks: [...w.tasks.entries()]
+        .map(([task, t]) => ({ task, ...t }))
+        .sort((a, b) => b.hours - a.hours),
+    }))
+    .sort((a, b) => b.hours - a.hours)
+}
+
 export default function ProjectDetail() {
   const { id } = useParams()
-  const navigate = useNavigate()
   const toast = useToast()
   const { can } = useAuth()
   const canWrite = can('perm_projects_write')
   const canHours = can('perm_timesheets')
-  const canInvoices = can('perm_invoices_full')
+  const canInvoicesFull = can('perm_invoices_full')
+  const canInvoicesAdd = can('perm_invoices_add')
+  const canCostsAdd = can('perm_costs_add')
 
   const [state, setState] = useState({ loading: true, error: null })
   const [data, setData] = useState(null)
   const [tab, setTab] = useState('prehlad')
-  const [editing, setEditing] = useState(false)
+  const [modal, setModal] = useState(null) // 'edit' | 'material' | 'incoming' | 'issued' | 'assign'
   const [savingStatus, setSavingStatus] = useState(false)
+  const [openWorkers, setOpenWorkers] = useState({})
 
   const load = async () => {
     setState({ loading: true, error: null })
@@ -37,8 +70,8 @@ export default function ProjectDetail() {
         apiCall('getProjects'),
         can('perm_customers') ? apiCall('getCustomers') : Promise.resolve([]),
         canHours ? apiCall('getTimeEntries') : Promise.resolve([]),
-        canInvoices ? apiCall('getInvoices') : Promise.resolve([]),
-        canInvoices ? apiCall('getIncomingInvoices') : Promise.resolve([]),
+        canInvoicesFull ? apiCall('getInvoices') : Promise.resolve([]),
+        canInvoicesFull ? apiCall('getIncomingInvoices') : Promise.resolve([]),
         apiCall('getMaterialItems'),
       ])
       setData({ projects, customers, entries, invoices, incoming, material })
@@ -65,6 +98,7 @@ export default function ProjectDetail() {
   const entries = data.entries.filter(e => String(e.projectId) === String(id))
   const hoursTotal = entries.reduce((s, e) => s + parseNum(e.durationMin), 0) / 60
   const laborTotal = entries.reduce((s, e) => s + parseNum(e.laborCost), 0)
+  const grouped = groupEntries(entries)
   const material = data.material.filter(m => String(m.projectId) === String(id))
   const materialTotal = material.reduce((s, m) => s + parseNum(m.amount), 0)
   const issued = data.invoices.filter(i => String(i.projectId) === String(id))
@@ -90,6 +124,8 @@ export default function ProjectDetail() {
     }
   }
 
+  const closeAndReload = () => { setModal(null); load() }
+
   const norm = normalizeStatus(project.status)
   const overdue = project.deadline && toIsoDate(project.deadline) < toIsoDate(new Date().toISOString())
     && norm !== 'uzavrety' && norm !== 'odovzdany' && norm !== 'zruseny'
@@ -103,7 +139,7 @@ export default function ProjectDetail() {
           <div className="muted">{project.customer}</div>
         </div>
         <div className="head-actions">
-          {canWrite && (
+          {canWrite ? (
             <select className="status-select" value={norm} onChange={changeStatus} disabled={savingStatus}>
               {PROJECT_STATUSES.map(s => (
                 <option key={s.value} value={s.value}>
@@ -111,15 +147,16 @@ export default function ProjectDetail() {
                 </option>
               ))}
             </select>
+          ) : (
+            <StatusBadge status={project.status} />
           )}
-          {!canWrite && <StatusBadge status={project.status} />}
-          {canWrite && <button className="btn" onClick={() => setEditing(true)}>Upraviť</button>}
+          {canWrite && <button className="btn" onClick={() => setModal('edit')}>✎ Upraviť projekt</button>}
         </div>
       </header>
 
       <div className="tabs">
         <button className={tab === 'prehlad' ? 'tab active' : 'tab'} onClick={() => setTab('prehlad')}>Prehľad</button>
-        {canHours && <button className={tab === 'hodiny' ? 'tab active' : 'tab'} onClick={() => setTab('hodiny')}>Hodiny ({entries.length})</button>}
+        {canHours && <button className={tab === 'hodiny' ? 'tab active' : 'tab'} onClick={() => setTab('hodiny')}>Hodiny</button>}
         <button className={tab === 'naklady' ? 'tab active' : 'tab'} onClick={() => setTab('naklady')}>Faktúry a náklady</button>
       </div>
 
@@ -139,7 +176,7 @@ export default function ProjectDetail() {
             {canHours && (
               <div className="stat-card">
                 <div className="stat-label">Odpracované</div>
-                <div className="stat-value">{hoursTotal.toLocaleString('sk-SK', { maximumFractionDigits: 1 })} h</div>
+                <div className="stat-value">{fmtH(hoursTotal)} h</div>
                 <div className="stat-sub">{project.estimatedHours ? 'odhad ' + project.estimatedHours + ' h' : 'bez odhadu'}</div>
               </div>
             )}
@@ -157,28 +194,36 @@ export default function ProjectDetail() {
 
       {tab === 'hodiny' && canHours && (
         <div className="card">
-          {entries.length === 0 ? <p className="muted">Zatiaľ žiadne záznamy hodín.</p> : (
+          {grouped.length === 0 ? <p className="muted">Zatiaľ žiadne záznamy hodín.</p> : (
             <table className="table">
               <thead>
-                <tr><th>Dátum</th><th>Pracovník</th><th>Činnosť</th><th className="num">Hodiny</th><th className="num">Mzdový náklad</th></tr>
+                <tr><th>Pracovník / činnosť</th><th className="num">Hodiny</th><th className="num">Mzdový náklad</th></tr>
               </thead>
-              <tbody>
-                {[...entries]
-                  .sort((a, b) => (toIsoDate(b.date) || toIsoDate(b.startTime)).localeCompare(toIsoDate(a.date) || toIsoDate(a.startTime)))
-                  .map(e => (
-                    <tr key={e.id || e.startTime + e.employeeId}>
-                      <td>{fmtDate(e.date || e.startTime)}</td>
-                      <td>{e.employeeName || '—'}</td>
-                      <td>{e.task}</td>
-                      <td className="num">{(parseNum(e.durationMin) / 60).toLocaleString('sk-SK', { maximumFractionDigits: 1 })}</td>
-                      <td className="num">{fmtMoney(e.laborCost)}</td>
+              {grouped.map(w => (
+                <tbody key={w.name}>
+                  <tr
+                    className="worker-row"
+                    onClick={() => setOpenWorkers({ ...openWorkers, [w.name]: !openWorkers[w.name] })}
+                  >
+                    <td className="strong">
+                      <span className="caret">{openWorkers[w.name] ? '▾' : '▸'}</span> {w.name}
+                    </td>
+                    <td className="num strong">{fmtH(w.hours)}</td>
+                    <td className="num strong">{fmtMoney(w.cost)}</td>
+                  </tr>
+                  {openWorkers[w.name] && w.tasks.map(t => (
+                    <tr key={w.name + t.task} className="task-row">
+                      <td className="task-name">{t.task}</td>
+                      <td className="num">{fmtH(t.hours)}</td>
+                      <td className="num">{fmtMoney(t.cost)}</td>
                     </tr>
                   ))}
-              </tbody>
+                </tbody>
+              ))}
               <tfoot>
                 <tr>
-                  <td colSpan={3} className="strong">Spolu</td>
-                  <td className="num strong">{hoursTotal.toLocaleString('sk-SK', { maximumFractionDigits: 1 })}</td>
+                  <td className="strong">Spolu</td>
+                  <td className="num strong">{fmtH(hoursTotal)}</td>
                   <td className="num strong">{fmtMoney(laborTotal)}</td>
                 </tr>
               </tfoot>
@@ -190,7 +235,10 @@ export default function ProjectDetail() {
       {tab === 'naklady' && (
         <>
           <div className="card">
-            <h2>Materiál ({material.length}) — spolu {fmtMoney(materialTotal)}</h2>
+            <div className="card-head">
+              <h2>Materiál ({material.length}) — spolu {fmtMoney(materialTotal)}</h2>
+              {canCostsAdd && <button className="btn btn-sm" onClick={() => setModal('material')}>+ Pridať materiál</button>}
+            </div>
             {material.length === 0 ? <p className="muted">Žiadny materiál.</p> : (
               <table className="table">
                 <thead><tr><th>Položka</th><th>Kategória</th><th className="num">Suma</th></tr></thead>
@@ -202,58 +250,70 @@ export default function ProjectDetail() {
               </table>
             )}
           </div>
-          {canInvoices && (
-            <>
-              <div className="card">
-                <h2>Prijaté faktúry k projektu ({received.length}) — spolu {fmtMoney(receivedTotal)}</h2>
-                {received.length === 0 ? <p className="muted">Žiadne priradené prijaté faktúry.</p> : (
-                  <table className="table">
-                    <thead><tr><th>Dodávateľ</th><th>Číslo</th><th>Splatnosť</th><th>Stav</th><th className="num">Suma</th></tr></thead>
-                    <tbody>
-                      {received.map(i => (
-                        <tr key={i.id}>
-                          <td>{i.vendor}</td>
-                          <td>{i.driveLink ? <a href={i.driveLink} target="_blank" rel="noreferrer">{i.invoiceNumber}</a> : i.invoiceNumber}</td>
-                          <td>{fmtDate(i.dueDate)}</td>
-                          <td>{i.status}</td>
-                          <td className="num">{fmtMoney(i.amountGross)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+
+          {canInvoicesFull && (
+            <div className="card">
+              <div className="card-head">
+                <h2>Prijaté faktúry ({received.length}) — spolu {fmtMoney(receivedTotal)}</h2>
+                <div className="btn-group">
+                  {canInvoicesAdd && <button className="btn btn-sm btn-secondary" onClick={() => setModal('assign')}>Priradiť existujúcu</button>}
+                  <button className="btn btn-sm" onClick={() => setModal('incoming')}>+ Nová faktúra</button>
+                </div>
               </div>
-              <div className="card">
+              {received.length === 0 ? <p className="muted">Žiadne priradené prijaté faktúry.</p> : (
+                <table className="table">
+                  <thead><tr><th>Dodávateľ</th><th>Číslo</th><th>Splatnosť</th><th>Stav</th><th className="num">Suma</th></tr></thead>
+                  <tbody>
+                    {received.map(i => (
+                      <tr key={i.id}>
+                        <td>{i.vendor}</td>
+                        <td>{i.driveLink ? <a href={i.driveLink} target="_blank" rel="noreferrer">{i.invoiceNumber}</a> : i.invoiceNumber}</td>
+                        <td>{fmtDate(i.dueDate)}</td>
+                        <td>{i.status}</td>
+                        <td className="num">{fmtMoney(i.amountGross)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
+          {canInvoicesFull && (
+            <div className="card">
+              <div className="card-head">
                 <h2>Vydané faktúry ({issued.length})</h2>
-                {issued.length === 0 ? <p className="muted">Žiadne vydané faktúry k projektu.</p> : (
-                  <table className="table">
-                    <thead><tr><th>Číslo</th><th>Vystavená</th><th>Splatnosť</th><th>Stav</th><th className="num">Suma</th></tr></thead>
-                    <tbody>
-                      {issued.map(i => (
-                        <tr key={i.id}>
-                          <td>{i.number}</td>
-                          <td>{fmtDate(i.issueDate)}</td>
-                          <td>{fmtDate(i.dueDate)}</td>
-                          <td>{i.status}</td>
-                          <td className="num">{fmtMoney(i.amount)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+                {canInvoicesAdd && <button className="btn btn-sm" onClick={() => setModal('issued')}>+ Pridať vydanú</button>}
               </div>
-            </>
+              {issued.length === 0 ? <p className="muted">Žiadne vydané faktúry k projektu.</p> : (
+                <table className="table">
+                  <thead><tr><th>Číslo</th><th>Vystavená</th><th>Splatnosť</th><th>Stav</th><th className="num">Suma</th></tr></thead>
+                  <tbody>
+                    {issued.map(i => (
+                      <tr key={i.id}>
+                        <td>{i.number}</td>
+                        <td>{fmtDate(i.issueDate)}</td>
+                        <td>{fmtDate(i.dueDate)}</td>
+                        <td>{i.status}</td>
+                        <td className="num">{fmtMoney(i.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           )}
         </>
       )}
 
-      {editing && (
-        <ProjectForm
-          project={project}
-          customers={data.customers}
-          onClose={() => setEditing(false)}
-          onSaved={() => { setEditing(false); load() }}
-        />
+      {modal === 'edit' && (
+        <ProjectForm project={project} customers={data.customers} onClose={() => setModal(null)} onSaved={closeAndReload} />
+      )}
+      {modal === 'material' && <MaterialForm project={project} onClose={() => setModal(null)} onSaved={closeAndReload} />}
+      {modal === 'incoming' && <IncomingInvoiceForm project={project} onClose={() => setModal(null)} onSaved={closeAndReload} />}
+      {modal === 'issued' && <IssuedInvoiceForm project={project} onClose={() => setModal(null)} onSaved={closeAndReload} />}
+      {modal === 'assign' && (
+        <AssignInvoiceModal project={project} incoming={data.incoming} onClose={() => setModal(null)} onSaved={closeAndReload} />
       )}
     </div>
   )
