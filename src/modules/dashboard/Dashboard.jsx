@@ -10,7 +10,6 @@ export default function Dashboard() {
   const [state, setState] = useState({ loading: true, error: null, data: null })
 
   const showFinance = can('perm_invoices_full')
-  const showCosts = can('perm_costs_full')
   const showProjects = can('perm_projects_read')
 
   const load = async () => {

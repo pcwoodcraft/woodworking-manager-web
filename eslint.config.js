@@ -17,5 +17,11 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // načítanie dát cez load() v efekte je v tejto appke zámerný vzor
+      'react-hooks/set-state-in-effect': 'off',
+      // context súbory exportujú provider aj hook — fast refresh tam spraví full reload, to je OK
+      'react-refresh/only-export-components': 'off',
+    },
   },
 ])

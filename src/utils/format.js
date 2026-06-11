@@ -53,3 +53,30 @@ export function isRunningStatus(s) {
   const norm = normalizeStatus(s)
   return norm !== 'uzavrety' && norm !== 'zruseny'
 }
+
+// ── Mesiace (formát v tabuľke: 'RRRR-MM') ──────────────────
+
+const MONTH_NAMES = ['január', 'február', 'marec', 'apríl', 'máj', 'jún',
+  'júl', 'august', 'september', 'október', 'november', 'december']
+
+export function thisMonth() {
+  const d = new Date()
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+}
+
+export function shiftMonth(ym, delta) {
+  const [y, m] = ym.split('-').map(Number)
+  const d = new Date(y, m - 1 + delta, 1)
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+}
+
+export function fmtMonth(ym) {
+  if (!ym || !/^\d{4}-\d{2}/.test(ym)) return ym || '—'
+  const [y, m] = ym.split('-')
+  return MONTH_NAMES[Number(m) - 1] + ' ' + y
+}
+
+// Rozhodujúci dátum faktúry pre zaradenie do mesiaca (splatnosť, inak vystavenie)
+export function invoiceMonth(inv) {
+  return (toIsoDate(inv.dueDate) || toIsoDate(inv.issueDate) || '').substring(0, 7)
+}

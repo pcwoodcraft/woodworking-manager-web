@@ -71,7 +71,7 @@ export function AuthProvider({ children }) {
 
   // Inicializácia GIS po načítaní knižnice
   const onCredentialRef = useRef(onCredential)
-  onCredentialRef.current = onCredential
+  useEffect(() => { onCredentialRef.current = onCredential }, [onCredential])
   const [gisReady, setGisReady] = useState(false)
 
   useEffect(() => {

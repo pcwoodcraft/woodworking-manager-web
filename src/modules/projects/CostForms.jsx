@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Modal from '../../components/Modal'
 import { useToast } from '../../components/Toast'
 import { apiCall } from '../../api/client'
-import { fmtMoney, fmtDate, parseNum, toIsoDate } from '../../utils/format'
+import { fmtMoney, fmtDate, parseNum } from '../../utils/format'
 
 // Ručné pridávanie nákladov a faktúr ku konkrétnemu projektu (zadanie 6.4.3).
 

@@ -7,7 +7,11 @@ import { Spinner } from './components/ui'
 import Dashboard from './modules/dashboard/Dashboard'
 import Projects from './modules/projects/Projects'
 import ProjectDetail from './modules/projects/ProjectDetail'
-import Placeholder from './modules/Placeholder'
+import Customers from './modules/customers/Customers'
+import Invoices from './modules/invoices/Invoices'
+import Costs from './modules/costs/Costs'
+import Employees from './modules/employees/Employees'
+import Admin from './modules/admin/Admin'
 
 export default function App() {
   const { status } = useAuth()
@@ -20,13 +24,13 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Dashboard />} />
-          <Route path="zakaznici" element={<RequirePerm perm="perm_customers"><Placeholder title="Zákazníci" /></RequirePerm>} />
+          <Route path="zakaznici" element={<RequirePerm perm="perm_customers"><Customers /></RequirePerm>} />
           <Route path="projekty" element={<RequirePerm perm="perm_projects_read"><Projects /></RequirePerm>} />
           <Route path="projekty/:id" element={<RequirePerm perm="perm_projects_read"><ProjectDetail /></RequirePerm>} />
-          <Route path="faktury" element={<RequirePerm perm="perm_invoices_full"><Placeholder title="Faktúry" /></RequirePerm>} />
-          <Route path="naklady" element={<RequirePerm perm="perm_costs_full"><Placeholder title="Náklady" /></RequirePerm>} />
-          <Route path="zamestnanci" element={<RequirePerm perm="perm_employees"><Placeholder title="Zamestnanci" /></RequirePerm>} />
-          <Route path="administracia" element={<RequirePerm perm="perm_admin"><Placeholder title="Administrácia" /></RequirePerm>} />
+          <Route path="faktury" element={<RequirePerm perm="perm_invoices_full"><Invoices /></RequirePerm>} />
+          <Route path="naklady" element={<RequirePerm perm="perm_costs_full"><Costs /></RequirePerm>} />
+          <Route path="zamestnanci" element={<RequirePerm perm="perm_employees"><Employees /></RequirePerm>} />
+          <Route path="administracia" element={<RequirePerm perm="perm_admin"><Admin /></RequirePerm>} />
           <Route path="*" element={<div className="page"><h1>Stránka neexistuje</h1></div>} />
         </Route>
       </Routes>
