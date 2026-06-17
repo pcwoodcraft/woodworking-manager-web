@@ -4,7 +4,13 @@ export function toIsoDate(d) {
   if (!d) return ''
   if (/^\d{4}-\d{2}-\d{2}/.test(d)) return d.substring(0, 10)
   const dt = new Date(d)
-  return isNaN(dt.getTime()) ? '' : dt.toISOString().split('T')[0]
+  if (isNaN(dt.getTime())) return ''
+  // lokálne zložky (nie toISOString) — inak polnočný dátum z iného formátu
+  // preskočí cez UTC o deň späť
+  const y = dt.getFullYear()
+  const m = String(dt.getMonth() + 1).padStart(2, '0')
+  const day = String(dt.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 export function fmtDate(d) {
