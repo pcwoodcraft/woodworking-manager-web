@@ -2,6 +2,8 @@
 
 React frontend pre interný systém stolárstva — zákazníci, projekty, faktúry, náklady, zamestnanci, dashboard.
 
+**Ostrá adresa:** https://pcwoodcraft.github.io/woodworking-manager-web/
+
 Živý prehľad projektu: [`../woodworking-manager-stav-a-plan.md`](../woodworking-manager-stav-a-plan.md)
 
 ## Technológie
@@ -17,7 +19,9 @@ npm install
 npm run dev
 ```
 
-Aplikácia beží na `http://localhost:5173`. OAuth client musí mať tento origin v Google Cloud Console.
+Aplikácia beží na `http://localhost:5173`. OAuth client musí mať v Google Cloud Console **Authorized JavaScript origins**:
+- `http://localhost:5173` (vývoj)
+- `https://pcwoodcraft.github.io` (GitHub Pages)
 
 ## Konfigurácia
 
@@ -28,7 +32,7 @@ Identifikátory v `src/config.js`:
 
 ## Deploy
 
-Push do vetvy `main` spustí GitHub Actions workflow (`.github/workflows/deploy.yml`) a nasadí build na GitHub Pages. Vite `base: './'` kvôli hostingu v podpriečinku.
+Push do vetvy `main` spustí GitHub Actions workflow (`.github/workflows/deploy.yml`) a nasadí build na GitHub Pages. Vite `base: './'` kvôli hostingu v podpriečinku. Deploy trvá cca 2–5 minút — stav: [GitHub Actions](https://github.com/pcwoodcraft/woodworking-manager-web/actions).
 
 ## Štruktúra
 

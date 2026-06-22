@@ -206,7 +206,11 @@ export default function Pipeline() {
       if (res.warning) toast(res.warning)
       toast('Dopyt presunutý')
       setPendingLost(null)
-      load()
+      if (res.deal) {
+        setDeals(prev => prev.map(d => String(d.id) === String(dealId) ? res.deal : d))
+      } else {
+        load()
+      }
     } catch (e) {
       toast(e.message, 'err')
     } finally {

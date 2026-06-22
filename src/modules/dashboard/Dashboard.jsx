@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { apiCall } from '../../api/client'
+import { cacheGet, cacheSet } from '../../api/cache'
 import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox, StatusBadge } from '../../components/ui'
 import {
@@ -15,24 +16,24 @@ export default function Dashboard() {
   const showFinance = can('perm_invoices_full')
   const showProjects = can('perm_projects_read')
 
+  const applyData = (d) => setState({ loading: false, error: null, data: d })
+
   const load = async () => {
-    setState({ loading: true, error: null, data: null })
+    const hit = cacheGet('dashboardPage')
+    if (hit) applyData(hit)
+    else setState({ loading: true, error: null, data: null })
     try {
-      const [projects, incoming, invoices, warnings] = await Promise.all([
-        showProjects ? apiCall('getProjects') : Promise.resolve([]),
-        showFinance ? apiCall('getIncomingInvoices') : Promise.resolve([]),
-        showFinance ? apiCall('getInvoices') : Promise.resolve([]),
-        showProjects ? apiCall('getBudgetWarnings') : Promise.resolve([]),
-      ])
-      setState({ loading: false, error: null, data: { projects, incoming, invoices, warnings } })
+      const page = await apiCall('getDashboardPage')
+      cacheSet('dashboardPage', page)
+      applyData(page)
     } catch (e) {
-      setState({ loading: false, error: e, data: null })
+      if (!hit) setState({ loading: false, error: e, data: null })
     }
   }
 
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (state.loading) return <Spinner />
+  if (state.loading && !state.data) return <Spinner />
   if (state.error) return <ErrorBox error={state.error} onRetry={load} />
 
   const { projects, incoming, invoices, warnings } = state.data

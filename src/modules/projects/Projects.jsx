@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiCall } from '../../api/client'
+import { cacheGet, cacheSet, invalidateProjectCaches } from '../../api/cache'
 import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox, StatusBadge } from '../../components/ui'
 import ProjectForm from './ProjectForm'
@@ -18,16 +19,27 @@ export default function Projects() {
   const [search, setSearch] = useState('')
   const [form, setForm] = useState(null) // null | 'new' | projekt na úpravu
 
+  const applyPage = (page) => {
+    setProjects(page.projects || [])
+    setCustomers(page.customers || [])
+    setWarnings(page.warnings || [])
+  }
+
   const load = async () => {
-    setState({ loading: true, error: null })
+    const hit = cacheGet('projectsPage')
+    if (hit) {
+      applyPage(hit)
+      setState({ loading: false, error: null })
+    } else {
+      setState({ loading: true, error: null })
+    }
     try {
       const page = await apiCall('getProjectsPage')
-      setProjects(page.projects || [])
-      setCustomers(page.customers || [])
-      setWarnings(page.warnings || [])
+      cacheSet('projectsPage', page)
+      applyPage(page)
       setState({ loading: false, error: null })
     } catch (e) {
-      setState({ loading: false, error: e })
+      if (!hit) setState({ loading: false, error: e })
     }
   }
 
@@ -122,7 +134,7 @@ export default function Projects() {
           project={form === 'new' ? null : form}
           customers={customers}
           onClose={() => setForm(null)}
-          onSaved={() => { setForm(null); load() }}
+          onSaved={() => { invalidateProjectCaches(); setForm(null); load() }}
         />
       )}
     </div>

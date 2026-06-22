@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { apiCall } from '../../api/client'
+import { cacheGet, cacheSet, invalidateProjectCaches } from '../../api/cache'
 import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox, StatusBadge } from '../../components/ui'
 import { useToast } from '../../components/Toast'
@@ -123,32 +124,44 @@ export default function ProjectDetail() {
   const [openWorkers, setOpenWorkers] = useState({})
   const [invoiceLang, setInvoiceLang] = useState('sk')
 
+  const applyPage = (page) => {
+    setData({
+      projects: page.projects,
+      customers: page.customers,
+      entries: page.entries,
+      invoices: page.invoices,
+      incoming: page.incoming,
+      material: page.material,
+    })
+    setSummary(page.summary)
+  }
+
   const load = async () => {
-    setState({ loading: true, error: null })
+    const cacheKey = 'projectDetail:' + id
+    const hit = cacheGet(cacheKey)
+    if (hit) {
+      applyPage(hit)
+      setState({ loading: false, error: null })
+    } else {
+      setState({ loading: true, error: null })
+    }
     try {
-      const [projects, customers, entries, invoices, incoming, material, projectSummary] = await Promise.all([
-        apiCall('getProjects'),
-        can('perm_customers') ? apiCall('getCustomers') : Promise.resolve([]),
-        canHours ? apiCall('getTimeEntries', { projectId: id }) : Promise.resolve([]),
-        canInvoicesFull ? apiCall('getInvoices') : Promise.resolve([]),
-        canInvoicesFull ? apiCall('getIncomingInvoices') : Promise.resolve([]),
-        apiCall('getMaterialItems'),
-        apiCall('getProjectSummary', { id }),
-      ])
-      setData({ projects, customers, entries, invoices, incoming, material })
-      setSummary(projectSummary)
+      const page = await apiCall('getProjectDetailPage', { id })
+      cacheSet(cacheKey, page)
+      applyPage(page)
       setState({ loading: false, error: null })
     } catch (e) {
-      setState({ loading: false, error: e })
+      if (!hit) setState({ loading: false, error: e })
     }
   }
 
   useEffect(() => { load() }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (state.loading) return <Spinner />
+  if (state.loading && !data) return <Spinner />
   if (state.error) return <ErrorBox error={state.error} onRetry={load} />
+  if (!data) return <Spinner />
 
-  const project = data.projects.find(p => String(p.id) === String(id))
+  const project = data?.projects?.find(p => String(p.id) === String(id)) || data?.project
   if (!project) {
     return (
       <div className="page">
@@ -180,7 +193,7 @@ export default function ProjectDetail() {
     try {
       await apiCall('updateProjectStatus', { id: project.id, status })
       toast('Stav zmenený na „' + statusLabel(status) + '“')
-      await load()
+      await reload()
     } catch (err) {
       toast('Nepodarilo sa zmeniť stav: ' + err.message, 'err')
     } finally {
@@ -188,25 +201,27 @@ export default function ProjectDetail() {
     }
   }
 
+  const reload = () => { invalidateProjectCaches(id); return load() }
+
   const deleteMaterial = async (item) => {
     if (!window.confirm('Zmazať položku „' + item.name + '“?')) return
     try {
       await apiCall('deleteMaterialItem', { id: item.id })
       toast('Materiál zmazaný')
-      await load()
+      await reload()
     } catch (err) {
       toast('Nepodarilo sa zmazať: ' + err.message, 'err')
     }
   }
 
-  const closeAndReload = () => { setModal(null); load() }
+  const closeAndReload = () => { setModal(null); reload() }
 
   const issueAdvance = async () => {
     if (!window.confirm('Vystaviť zálohovú faktúru k tomuto projektu?')) return
     try {
       const r = await apiCall('createProjectAdvanceInvoice', { projectId: project.id, language: invoiceLang })
       toast('Zálohová faktúra ' + (r.invoice?.number || '') + ' vystavená')
-      load()
+      reload()
     } catch (e) {
       toast('Nepodarilo sa vystaviť: ' + e.message, 'err')
     }
@@ -221,7 +236,7 @@ export default function ProjectDetail() {
     try {
       const r = await apiCall('createProjectBalanceInvoice', { projectId: project.id, language: invoiceLang })
       toast('Dofakturácia ' + (r.invoice?.number || '') + ' vystavená')
-      load()
+      reload()
     } catch (e) {
       toast('Nepodarilo sa vystaviť: ' + e.message, 'err')
     }
@@ -232,7 +247,7 @@ export default function ProjectDetail() {
     try {
       const r = await apiCall('createOstraInvoiceFromAdvance', { advanceInvoiceId: inv.id, language: invoiceLang })
       toast('Ostrá faktúra ' + (r.invoice?.number || '') + ' vystavená')
-      load()
+      reload()
     } catch (e) {
       toast('Nepodarilo sa vystaviť: ' + e.message, 'err')
     }
@@ -243,7 +258,7 @@ export default function ProjectDetail() {
     try {
       await apiCall('updateInvoice', { invoice: { id: inv.id, status: next } })
       toast('Stav faktúry aktualizovaný')
-      load()
+      reload()
     } catch (e) {
       toast('Nepodarilo sa uložiť: ' + e.message, 'err')
     }
