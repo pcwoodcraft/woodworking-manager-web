@@ -21,14 +21,10 @@ export default function Projects() {
   const load = async () => {
     setState({ loading: true, error: null })
     try {
-      const [p, c, w] = await Promise.all([
-        apiCall('getProjects'),
-        can('perm_customers') ? apiCall('getCustomers') : Promise.resolve([]),
-        apiCall('getBudgetWarnings').catch(() => []),
-      ])
-      setProjects(p)
-      setCustomers(c)
-      setWarnings(w)
+      const page = await apiCall('getProjectsPage')
+      setProjects(page.projects || [])
+      setCustomers(page.customers || [])
+      setWarnings(page.warnings || [])
       setState({ loading: false, error: null })
     } catch (e) {
       setState({ loading: false, error: e })
