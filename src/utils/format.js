@@ -31,6 +31,28 @@ export function parseNum(v) {
   return isNaN(n) ? 0 : n
 }
 
+const DEFAULT_VAT_RATE = 23
+
+/** Cena zákazky bez DPH — primárna hodnota pre zoznamy a prehľady. */
+export function projectPriceNet(project, vatRate = DEFAULT_VAT_RATE) {
+  if (project?.priceNet !== '' && project?.priceNet != null && !isNaN(parseNum(project.priceNet))) {
+    return parseNum(project.priceNet)
+  }
+  const gross = parseNum(project?.price)
+  if (gross <= 0) return 0
+  return Math.round(gross / (1 + vatRate / 100) * 100) / 100
+}
+
+/** Cena zákazky s DPH — len pre detail projektu. */
+export function projectPriceGross(project, vatRate = DEFAULT_VAT_RATE) {
+  if (project?.price !== '' && project?.price != null && !isNaN(parseNum(project.price))) {
+    return parseNum(project.price)
+  }
+  const net = parseNum(project?.priceNet)
+  if (net <= 0) return 0
+  return Math.round(net * (1 + vatRate / 100) * 100) / 100
+}
+
 // Stavy projektov: kód v tabuľke -> text v rozhraní.
 // Staré hodnoty (Aktívny/Dokončený/Zrušený) sa zobrazujú správne až do migrácie.
 export const PROJECT_STATUSES = [
@@ -38,11 +60,15 @@ export const PROJECT_STATUSES = [
   { value: 'vyroba', label: 'Výroba' },
   { value: 'montaz', label: 'Montáž' },
   { value: 'odovzdany', label: 'Odovzdaný' },
-  { value: 'uzavrety', label: 'Uzavretý' },
   { value: 'zruseny', label: 'Zrušený' },
 ]
 
-const LEGACY_STATUS = { 'Aktívny': 'vyroba', 'Dokončený': 'odovzdany', 'Zrušený': 'zruseny' }
+const LEGACY_STATUS = {
+  'Aktívny': 'vyroba',
+  'Dokončený': 'odovzdany',
+  'Zrušený': 'zruseny',
+  'uzavrety': 'odovzdany',
+}
 
 export function normalizeStatus(s) {
   if (LEGACY_STATUS[s]) return LEGACY_STATUS[s]
@@ -54,10 +80,42 @@ export function statusLabel(s) {
   return PROJECT_STATUSES.find(x => x.value === norm)?.label ?? s
 }
 
-// Bežiaci projekt = nie je uzavretý ani zrušený
+// Bežiaci projekt = nie je odovzdaný ani zrušený (legacy uzavrety tiež nie)
 export function isRunningStatus(s) {
   const norm = normalizeStatus(s)
-  return norm !== 'uzavrety' && norm !== 'zruseny'
+  return norm !== 'odovzdany' && norm !== 'zruseny'
+}
+
+// Úroveň varovania rozpočtu (90 % / 100 % pravidlo)
+export function budgetLevel(costPercent) {
+  if (costPercent == null || isNaN(costPercent)) return 'none'
+  if (costPercent >= 100) return 'over'
+  if (costPercent >= 90) return 'warn'
+  return 'ok'
+}
+
+export function fmtPercent(v) {
+  if (v == null || isNaN(v)) return '—'
+  return v.toLocaleString('sk-SK', { maximumFractionDigits: 1 }) + ' %'
+}
+
+export function priorityLabel(priority) {
+  const n = parseInt(priority, 10)
+  if (n === 1) return 'Vysoká'
+  if (n === 2) return 'Stredná'
+  if (n === 3) return 'Nízka'
+  return '—'
+}
+
+export function prioritySortKey(priority) {
+  const n = parseInt(priority, 10)
+  return (n >= 1 && n <= 3) ? n : 9
+}
+
+export function sortProjectsForSchedule(a, b) {
+  const pd = prioritySortKey(a.priority) - prioritySortKey(b.priority)
+  if (pd !== 0) return pd
+  return (toIsoDate(a.deadline) || '9999').localeCompare(toIsoDate(b.deadline) || '9999')
 }
 
 // ── Mesiace (formát v tabuľke: 'RRRR-MM') ──────────────────

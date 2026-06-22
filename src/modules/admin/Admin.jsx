@@ -4,9 +4,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import Modal from '../../components/Modal'
-
-// Správa používateľov: pridanie (email + šablóna role), úprava jednotlivých
-// práv prepínačmi, deaktivácia. Posledného admina stráži server.
+import InvoiceSettingsPanel from './InvoiceSettingsPanel'
 
 const PERM_LABELS = {
   perm_customers: 'Zákazníci (CRM)',
@@ -18,7 +16,7 @@ const PERM_LABELS = {
   perm_costs_add: 'Náklady — pridanie k projektu',
   perm_employees: 'Zamestnanci a mzdové údaje',
   perm_timesheets: 'Výkazy práce',
-  perm_files: 'Súbory k projektom (od Fázy 2)',
+  perm_files: 'Súbory k projektom',
   perm_admin: 'Správa používateľov',
 }
 
@@ -71,6 +69,7 @@ function AddUserModal({ onClose, onSaved }) {
 function EditUserModal({ user, selfEmail, onClose, onSaved }) {
   const toast = useToast()
   const [saving, setSaving] = useState(false)
+  const [name, setName] = useState(user.name || '')
   const [active, setActive] = useState(user.active)
   const [perms, setPerms] = useState(
     Object.fromEntries(Object.keys(PERM_LABELS).map(k => [k, !!user[k]]))
@@ -80,7 +79,7 @@ function EditUserModal({ user, selfEmail, onClose, onSaved }) {
   const save = async () => {
     setSaving(true)
     try {
-      await apiCall('updateUser', { user: { email: user.email, active, ...perms } })
+      await apiCall('updateUser', { user: { email: user.email, name: name.trim(), active, ...perms } })
       toast('Práva uložené' + (isSelf ? ' — zmeny vlastných práv sa prejavia do ~10 minút' : ''))
       onSaved()
     } catch (e) {
@@ -96,6 +95,14 @@ function EditUserModal({ user, selfEmail, onClose, onSaved }) {
         <button className="btn" onClick={save} disabled={saving}>{saving ? 'Ukladá sa…' : 'Uložiť'}</button>
       </>}>
       <p className="muted" style={{ marginBottom: 14 }}>{user.email} · šablóna: {ROLE_LABELS[user.role] || user.role}</p>
+
+      <label className="field" style={{ marginBottom: 14 }}>
+        <span>Meno</span>
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="Zobrazované meno" />
+      </label>
+      <p className="muted" style={{ marginTop: -6, marginBottom: 14 }}>
+        Pri ďalšom prihlásení sa meno automaticky doplní z Google účtu, ak je v tabuľke chybné.
+      </p>
 
       <label className="switch-row switch-row-main">
         <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} />
@@ -117,9 +124,25 @@ function EditUserModal({ user, selfEmail, onClose, onSaved }) {
 
 export default function Admin() {
   const { me } = useAuth()
+  const toast = useToast()
   const [state, setState] = useState({ loading: true, error: null })
   const [users, setUsers] = useState([])
-  const [modal, setModal] = useState(null) // 'new' | user
+  const [modal, setModal] = useState(null)
+  const [backupBusy, setBackupBusy] = useState(false)
+  const [lastBackup, setLastBackup] = useState(null)
+
+  const runBackup = async () => {
+    setBackupBusy(true)
+    try {
+      const result = await apiCall('backupSpreadsheet')
+      setLastBackup(result)
+      toast('Záloha vytvorená')
+    } catch (e) {
+      toast('Chyba: ' + e.message, 'err')
+    } finally {
+      setBackupBusy(false)
+    }
+  }
 
   const load = async () => {
     setState({ loading: true, error: null })
@@ -143,7 +166,7 @@ export default function Admin() {
         <button className="btn" onClick={() => setModal('new')}>+ Nový používateľ</button>
       </header>
 
-      <div className="card">
+      <div className="card" style={{ marginBottom: 20 }}>
         <table className="table table-click">
           <thead>
             <tr><th>Meno</th><th>Email</th><th>Rola</th><th>Stav</th><th>Práva</th></tr>
@@ -169,6 +192,26 @@ export default function Admin() {
           Kliknutím na používateľa upravíte jeho práva. Nového používateľa sa po pridaní stačí
           prihlásiť firemným Google účtom — heslo sa nikde nenastavuje.
         </p>
+      </div>
+
+      <div className="card" style={{ marginBottom: 20 }}>
+        <h2>Fakturácia</h2>
+        <InvoiceSettingsPanel />
+      </div>
+
+      <div className="card admin-backup">
+        <div>
+          <h2 style={{ marginBottom: 4 }}>Záloha databázy</h2>
+          <p className="muted">Kópia tabuľky na Google Drive s dátumom v názve.</p>
+          {lastBackup?.url && (
+            <p className="muted" style={{ marginTop: 8 }}>
+              <a href={lastBackup.url} target="_blank" rel="noreferrer">Posledná záloha: {lastBackup.name}</a>
+            </p>
+          )}
+        </div>
+        <button className="btn btn-secondary" disabled={backupBusy} onClick={runBackup}>
+          {backupBusy ? 'Vytvára sa…' : 'Vytvoriť zálohu'}
+        </button>
       </div>
 
       {modal === 'new' && <AddUserModal onClose={() => setModal(null)} onSaved={() => { setModal(null); load() }} />}

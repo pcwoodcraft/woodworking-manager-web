@@ -7,6 +7,7 @@ const MENU = [
   { to: '/', label: 'Prehľad', icon: '◧', end: true },
   { to: '/zakaznici', label: 'Zákazníci', icon: '◔', perm: 'perm_customers' },
   { to: '/projekty', label: 'Projekty', icon: '◩', perm: 'perm_projects_read' },
+  { to: '/dielna', label: 'Dielňa', icon: '◰', perm: 'perm_projects_read' },
   { to: '/faktury', label: 'Faktúry', icon: '◫', perm: 'perm_invoices_full' },
   { to: '/naklady', label: 'Náklady', icon: '◭', perm: 'perm_costs_full' },
   { to: '/zamestnanci', label: 'Zamestnanci', icon: '◗', perm: 'perm_employees' },

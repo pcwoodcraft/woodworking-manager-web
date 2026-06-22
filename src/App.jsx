@@ -12,6 +12,7 @@ import Invoices from './modules/invoices/Invoices'
 import Costs from './modules/costs/Costs'
 import Employees from './modules/employees/Employees'
 import Admin from './modules/admin/Admin'
+import Workshop from './modules/workshop/Workshop'
 
 export default function App() {
   const { status } = useAuth()
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="zakaznici" element={<RequirePerm perm="perm_customers"><Customers /></RequirePerm>} />
           <Route path="projekty" element={<RequirePerm perm="perm_projects_read"><Projects /></RequirePerm>} />
           <Route path="projekty/:id" element={<RequirePerm perm="perm_projects_read"><ProjectDetail /></RequirePerm>} />
+          <Route path="dielna" element={<RequirePerm perm="perm_projects_read"><Workshop /></RequirePerm>} />
           <Route path="faktury" element={<RequirePerm perm="perm_invoices_full"><Invoices /></RequirePerm>} />
           <Route path="naklady" element={<RequirePerm perm="perm_costs_full"><Costs /></RequirePerm>} />
           <Route path="zamestnanci" element={<RequirePerm perm="perm_employees"><Employees /></RequirePerm>} />

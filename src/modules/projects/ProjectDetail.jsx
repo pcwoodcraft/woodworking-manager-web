@@ -5,20 +5,32 @@ import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox, StatusBadge } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import ProjectForm from './ProjectForm'
-import { MaterialForm, IncomingInvoiceForm, IssuedInvoiceForm, AssignInvoiceModal } from './CostForms'
+import { MaterialForm, IncomingInvoiceForm, AssignInvoiceModal } from './CostForms'
+import CreateIssuedInvoiceForm, { TYPE_LABELS } from '../invoices/CreateIssuedInvoiceForm'
+
+function displayInvoiceNumber(inv) {
+  const n = inv.number || ''
+  if (inv.type === 'zalohova') return n
+  return n.replace(/^F/i, '')
+}
+
+function hasOstraForAdvance(invoices, advanceId) {
+  return invoices.some(i => i.type === 'ostra' && String(i.relatedInvoiceId) === String(advanceId))
+}
+import ProjectFilesTab from './ProjectFilesTab'
+import ManualTimeEntryForm from './ManualTimeEntryForm'
 import {
-  fmtMoney, fmtDate, parseNum, toIsoDate,
-  PROJECT_STATUSES, normalizeStatus, statusLabel,
+  fmtMoney, fmtDate, fmtPercent, parseNum, toIsoDate,
+  PROJECT_STATUSES, normalizeStatus, statusLabel, budgetLevel,
+  projectPriceNet, projectPriceGross,
 } from '../../utils/format'
 
 const CONFIRM_STATUSES = {
-  uzavrety: 'Naozaj uzavrieť projekt? Uzavretý projekt zmizne z bežiacich a považuje sa za ukončený.',
   zruseny: 'Naozaj označiť projekt ako zrušený?',
 }
 
 const fmtH = (h) => h.toLocaleString('sk-SK', { maximumFractionDigits: 1 })
 
-// Hodiny zoskupené: pracovník -> činnosť -> súčet hodín a mzdových nákladov
 function groupEntries(entries) {
   const workers = new Map()
   entries.forEach(e => {
@@ -46,6 +58,51 @@ function groupEntries(entries) {
     .sort((a, b) => b.hours - a.hours)
 }
 
+function BudgetOverview({ summary, project }) {
+  if (!summary) return null
+  const { price, laborCost, materialCost, incomingCost, totalCost, costPercent } = summary
+  const priceGross = project ? projectPriceGross(project) : 0
+  const level = budgetLevel(costPercent)
+  const pct = costPercent != null ? Math.min(costPercent, 100) : 0
+
+  return (
+    <div className="card">
+      <h2>Plán vs. skutočnosť</h2>
+      <div className="stat-grid" style={{ marginBottom: 0 }}>
+        <div className="stat-card">
+          <div className="stat-label">Cena zákazky (bez DPH)</div>
+          <div className="stat-value">{fmtMoney(price)}</div>
+          {priceGross > 0 && (
+            <div className="stat-sub">s DPH: {fmtMoney(priceGross)}</div>
+          )}
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Náklady spolu</div>
+          <div className={'stat-value' + (level === 'over' ? ' budget-label-over' : level === 'warn' ? ' budget-label-warn' : '')}>
+            {fmtMoney(totalCost)}
+          </div>
+          {costPercent != null && (
+            <div className={'stat-sub' + (level === 'over' ? ' budget-label-over' : level === 'warn' ? ' budget-label-warn' : '')}>
+              {level === 'over' ? '🔴 Nad rozpočtom — ' : level === 'warn' ? '⚠ Blízko limitu — ' : ''}
+              {fmtPercent(costPercent)} ceny
+            </div>
+          )}
+        </div>
+      </div>
+      {costPercent != null && price > 0 && (
+        <div className="budget-bar" title={fmtPercent(costPercent)}>
+          <div className={'budget-fill budget-fill-' + (level === 'none' ? 'ok' : level)} style={{ width: pct + '%' }} />
+        </div>
+      )}
+      <div className="budget-breakdown">
+        <div className="row"><span>Mzdové náklady</span><span>{fmtMoney(laborCost)}</span></div>
+        <div className="row"><span>Materiál</span><span>{fmtMoney(materialCost)}</span></div>
+        <div className="row"><span>Prijaté faktúry</span><span>{fmtMoney(incomingCost)}</span></div>
+      </div>
+    </div>
+  )
+}
+
 export default function ProjectDetail() {
   const { id } = useParams()
   const toast = useToast()
@@ -55,26 +112,31 @@ export default function ProjectDetail() {
   const canInvoicesFull = can('perm_invoices_full')
   const canInvoicesAdd = can('perm_invoices_add')
   const canCostsAdd = can('perm_costs_add')
+  const canFiles = can('perm_files')
 
   const [state, setState] = useState({ loading: true, error: null })
   const [data, setData] = useState(null)
+  const [summary, setSummary] = useState(null)
   const [tab, setTab] = useState('prehlad')
-  const [modal, setModal] = useState(null) // 'edit' | 'material' | 'incoming' | 'issued' | 'assign'
+  const [modal, setModal] = useState(null)
   const [savingStatus, setSavingStatus] = useState(false)
   const [openWorkers, setOpenWorkers] = useState({})
+  const [invoiceLang, setInvoiceLang] = useState('sk')
 
   const load = async () => {
     setState({ loading: true, error: null })
     try {
-      const [projects, customers, entries, invoices, incoming, material] = await Promise.all([
+      const [projects, customers, entries, invoices, incoming, material, projectSummary] = await Promise.all([
         apiCall('getProjects'),
         can('perm_customers') ? apiCall('getCustomers') : Promise.resolve([]),
-        canHours ? apiCall('getTimeEntries') : Promise.resolve([]),
+        canHours ? apiCall('getTimeEntries', { projectId: id }) : Promise.resolve([]),
         canInvoicesFull ? apiCall('getInvoices') : Promise.resolve([]),
         canInvoicesFull ? apiCall('getIncomingInvoices') : Promise.resolve([]),
         apiCall('getMaterialItems'),
+        apiCall('getProjectSummary', { id }),
       ])
       setData({ projects, customers, entries, invoices, incoming, material })
+      setSummary(projectSummary)
       setState({ loading: false, error: null })
     } catch (e) {
       setState({ loading: false, error: e })
@@ -95,13 +157,15 @@ export default function ProjectDetail() {
     )
   }
 
-  const entries = data.entries.filter(e => String(e.projectId) === String(id))
+  const entries = data.entries
   const hoursTotal = entries.reduce((s, e) => s + parseNum(e.durationMin), 0) / 60
   const laborTotal = entries.reduce((s, e) => s + parseNum(e.laborCost), 0)
   const grouped = groupEntries(entries)
   const material = data.material.filter(m => String(m.projectId) === String(id))
   const materialTotal = material.reduce((s, m) => s + parseNum(m.amount), 0)
   const issued = data.invoices.filter(i => String(i.projectId) === String(id))
+  const hasOstraInvoice = issued.some(i => i.type === 'ostra')
+  const hasBalanceInvoice = issued.some(i => i.type === 'dokoncova')
   const received = data.incoming.filter(i => String(i.projectId) === String(id))
   const receivedTotal = received.reduce((s, i) => s + parseNum(i.amountGross), 0)
 
@@ -124,11 +188,70 @@ export default function ProjectDetail() {
     }
   }
 
+  const deleteMaterial = async (item) => {
+    if (!window.confirm('Zmazať položku „' + item.name + '“?')) return
+    try {
+      await apiCall('deleteMaterialItem', { id: item.id })
+      toast('Materiál zmazaný')
+      await load()
+    } catch (err) {
+      toast('Nepodarilo sa zmazať: ' + err.message, 'err')
+    }
+  }
+
   const closeAndReload = () => { setModal(null); load() }
+
+  const issueAdvance = async () => {
+    if (!window.confirm('Vystaviť zálohovú faktúru k tomuto projektu?')) return
+    try {
+      const r = await apiCall('createProjectAdvanceInvoice', { projectId: project.id, language: invoiceLang })
+      toast('Zálohová faktúra ' + (r.invoice?.number || '') + ' vystavená')
+      load()
+    } catch (e) {
+      toast('Nepodarilo sa vystaviť: ' + e.message, 'err')
+    }
+  }
+
+  const issueBalance = async () => {
+    if (!hasOstraInvoice) {
+      toast('Najprv vystavte ostrú faktúru k uhradenej zálohe', 'err')
+      return
+    }
+    if (!window.confirm('Vystaviť dofakturáciu? Na faktúre bude celá suma zákazky a mínusová položka prijatej zálohy.')) return
+    try {
+      const r = await apiCall('createProjectBalanceInvoice', { projectId: project.id, language: invoiceLang })
+      toast('Dofakturácia ' + (r.invoice?.number || '') + ' vystavená')
+      load()
+    } catch (e) {
+      toast('Nepodarilo sa vystaviť: ' + e.message, 'err')
+    }
+  }
+
+  const createOstra = async (inv) => {
+    if (!window.confirm('Vystaviť ostrú faktúru k zálohe ' + inv.number + '?')) return
+    try {
+      const r = await apiCall('createOstraInvoiceFromAdvance', { advanceInvoiceId: inv.id, language: invoiceLang })
+      toast('Ostrá faktúra ' + (r.invoice?.number || '') + ' vystavená')
+      load()
+    } catch (e) {
+      toast('Nepodarilo sa vystaviť: ' + e.message, 'err')
+    }
+  }
+
+  const toggleIssuedPaid = async (inv) => {
+    const next = inv.status === 'Uhradená' ? 'Neuhradená' : 'Uhradená'
+    try {
+      await apiCall('updateInvoice', { invoice: { id: inv.id, status: next } })
+      toast('Stav faktúry aktualizovaný')
+      load()
+    } catch (e) {
+      toast('Nepodarilo sa uložiť: ' + e.message, 'err')
+    }
+  }
 
   const norm = normalizeStatus(project.status)
   const overdue = project.deadline && toIsoDate(project.deadline) < toIsoDate(new Date().toISOString())
-    && norm !== 'uzavrety' && norm !== 'odovzdany' && norm !== 'zruseny'
+    && norm !== 'odovzdany' && norm !== 'zruseny'
 
   return (
     <div className="page">
@@ -136,15 +259,14 @@ export default function ProjectDetail() {
       <header className="page-head">
         <div>
           <h1>{project.name}</h1>
+          <div className="project-id">{project.id}</div>
           <div className="muted">{project.customer}</div>
         </div>
         <div className="head-actions">
           {canWrite ? (
             <select className="status-select" value={norm} onChange={changeStatus} disabled={savingStatus}>
               {PROJECT_STATUSES.map(s => (
-                <option key={s.value} value={s.value}>
-                  {s.value === 'uzavrety' ? '🔒 Uzavrieť projekt' : s.label}
-                </option>
+                <option key={s.value} value={s.value}>{s.label}</option>
               ))}
             </select>
           ) : (
@@ -158,25 +280,22 @@ export default function ProjectDetail() {
         <button className={tab === 'prehlad' ? 'tab active' : 'tab'} onClick={() => setTab('prehlad')}>Prehľad</button>
         {canHours && <button className={tab === 'hodiny' ? 'tab active' : 'tab'} onClick={() => setTab('hodiny')}>Hodiny</button>}
         <button className={tab === 'naklady' ? 'tab active' : 'tab'} onClick={() => setTab('naklady')}>Faktúry a náklady</button>
+        {canFiles && <button className={tab === 'subory' ? 'tab active' : 'tab'} onClick={() => setTab('subory')}>Súbory</button>}
       </div>
 
       {tab === 'prehlad' && (
         <>
+          <BudgetOverview summary={summary} project={project} />
           <div className="stat-grid">
             <div className="stat-card">
               <div className="stat-label">Stav</div>
               <div className="stat-value-sm"><StatusBadge status={project.status} /></div>
               <div className="stat-sub">Termín: <span className={overdue ? 'overdue' : ''}>{fmtDate(project.deadline)}{overdue ? ' ⚠' : ''}</span></div>
             </div>
-            <div className="stat-card">
-              <div className="stat-label">Cena</div>
-              <div className="stat-value">{fmtMoney(project.price)}</div>
-              <div className="stat-sub">sadzba {fmtMoney(project.hourlyRate)}/h</div>
-            </div>
             {canHours && (
               <div className="stat-card">
                 <div className="stat-label">Odpracované</div>
-                <div className="stat-value">{fmtH(hoursTotal)} h</div>
+                <div className="stat-value">{fmtH(summary?.hoursActual ?? hoursTotal)} h</div>
                 <div className="stat-sub">{project.estimatedHours ? 'odhad ' + project.estimatedHours + ' h' : 'bez odhadu'}</div>
               </div>
             )}
@@ -194,6 +313,10 @@ export default function ProjectDetail() {
 
       {tab === 'hodiny' && canHours && (
         <div className="card">
+          <div className="card-head">
+            <h2>Odpracované hodiny</h2>
+            <button className="btn btn-sm" onClick={() => setModal('manualHours')}>+ Pridať hodiny</button>
+          </div>
           {grouped.length === 0 ? <p className="muted">Zatiaľ žiadne záznamy hodín.</p> : (
             <table className="table">
               <thead>
@@ -241,10 +364,20 @@ export default function ProjectDetail() {
             </div>
             {material.length === 0 ? <p className="muted">Žiadny materiál.</p> : (
               <table className="table">
-                <thead><tr><th>Položka</th><th>Kategória</th><th className="num">Suma</th></tr></thead>
+                <thead><tr><th>Položka</th><th>Kategória</th><th className="num">Suma</th>{canCostsAdd && <th />}</tr></thead>
                 <tbody>
                   {material.map(m => (
-                    <tr key={m.id}><td>{m.name}</td><td>{m.category}</td><td className="num">{fmtMoney(m.amount)}</td></tr>
+                    <tr key={m.id}>
+                      <td>{m.name}</td>
+                      <td>{m.category}</td>
+                      <td className="num">{fmtMoney(m.amount)}</td>
+                      {canCostsAdd && (
+                        <td className="row-action">
+                          <button className="icon-btn" title="Upraviť" onClick={() => setModal({ type: 'material', item: m })}>✎</button>
+                          <button className="icon-btn" title="Zmazať" onClick={() => deleteMaterial(m)}>✕</button>
+                        </td>
+                      )}
+                    </tr>
                   ))}
                 </tbody>
               </table>
@@ -283,19 +416,49 @@ export default function ProjectDetail() {
             <div className="card">
               <div className="card-head">
                 <h2>Vydané faktúry ({issued.length})</h2>
-                {canInvoicesAdd && <button className="btn btn-sm" onClick={() => setModal('issued')}>+ Pridať vydanú</button>}
+                {canInvoicesAdd && (
+                  <div className="btn-group" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                    <label className="field" style={{ margin: 0, minWidth: 140 }}>
+                      <span style={{ fontSize: '0.85em' }}>Jazyk faktúry</span>
+                      <select value={invoiceLang} onChange={e => setInvoiceLang(e.target.value)}>
+                        <option value="sk">Slovenčina</option>
+                        <option value="en">English</option>
+                      </select>
+                    </label>
+                    <button className="btn btn-sm btn-secondary" onClick={issueAdvance}>Zálohová faktúra</button>
+                    <button className="btn btn-sm btn-secondary" onClick={issueBalance}
+                      disabled={!hasOstraInvoice || hasBalanceInvoice}
+                      title={!hasOstraInvoice ? 'Najprv ostrá faktúra k zálohe' : hasBalanceInvoice ? 'Dofakturácia už existuje' : ''}
+                    >Dofakturovať</button>
+                    <button className="btn btn-sm" onClick={() => setModal('issued')}>+ Vystaviť faktúru</button>
+                  </div>
+                )}
               </div>
               {issued.length === 0 ? <p className="muted">Žiadne vydané faktúry k projektu.</p> : (
                 <table className="table">
-                  <thead><tr><th>Číslo</th><th>Vystavená</th><th>Splatnosť</th><th>Stav</th><th className="num">Suma</th></tr></thead>
+                  <thead><tr><th>Číslo</th><th>Typ</th><th>Vystavená</th><th>Stav</th><th className="num">Suma</th><th /></tr></thead>
                   <tbody>
                     {issued.map(i => (
                       <tr key={i.id}>
-                        <td>{i.number}</td>
+                        <td>
+                          {i.driveLink
+                            ? <a href={i.driveLink} target="_blank" rel="noreferrer">{displayInvoiceNumber(i)}</a>
+                            : displayInvoiceNumber(i)}
+                        </td>
+                        <td>{TYPE_LABELS[i.type] || i.type || '—'}</td>
                         <td>{fmtDate(i.issueDate)}</td>
-                        <td>{fmtDate(i.dueDate)}</td>
-                        <td>{i.status}</td>
-                        <td className="num">{fmtMoney(i.amount)}</td>
+                        <td>
+                          <button
+                            className={'pill ' + (i.status === 'Uhradená' ? 'pill-ok' : 'pill-warn')}
+                            onClick={() => toggleIssuedPaid(i)}
+                          >{i.status || 'Neuhradená'}</button>
+                        </td>
+                        <td className="num">{fmtMoney(i.amountGross || i.amount)}</td>
+                        <td className="row-action">
+                          {i.type === 'zalohova' && i.status === 'Uhradená' && !hasOstraForAdvance(data.invoices, i.id) && (
+                            <button className="btn btn-sm btn-secondary" onClick={() => createOstra(i)}>Ostrá faktúra</button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -306,12 +469,34 @@ export default function ProjectDetail() {
         </>
       )}
 
+      {tab === 'subory' && canFiles && (
+        <ProjectFilesTab project={project} onProjectUpdated={load} />
+      )}
+
+      {modal === 'manualHours' && (
+        <ManualTimeEntryForm project={project} onClose={() => setModal(null)} onSaved={closeAndReload} />
+      )}
       {modal === 'edit' && (
         <ProjectForm project={project} customers={data.customers} onClose={() => setModal(null)} onSaved={closeAndReload} />
       )}
-      {modal === 'material' && <MaterialForm project={project} onClose={() => setModal(null)} onSaved={closeAndReload} />}
+      {(modal === 'material' || modal?.type === 'material') && (
+        <MaterialForm
+          project={project}
+          item={modal?.item}
+          onClose={() => setModal(null)}
+          onSaved={closeAndReload}
+        />
+      )}
       {modal === 'incoming' && <IncomingInvoiceForm project={project} onClose={() => setModal(null)} onSaved={closeAndReload} />}
-      {modal === 'issued' && <IssuedInvoiceForm project={project} onClose={() => setModal(null)} onSaved={closeAndReload} />}
+      {modal === 'issued' && (
+        <CreateIssuedInvoiceForm
+          project={project}
+          customers={data.customers}
+          initialLanguage={invoiceLang}
+          onClose={() => setModal(null)}
+          onSaved={closeAndReload}
+        />
+      )}
       {modal === 'assign' && (
         <AssignInvoiceModal project={project} incoming={data.incoming} onClose={() => setModal(null)} onSaved={closeAndReload} />
       )}

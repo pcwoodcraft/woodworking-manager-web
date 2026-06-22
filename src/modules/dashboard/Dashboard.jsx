@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { apiCall } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox, StatusBadge } from '../../components/ui'
-import { fmtMoney, fmtDate, parseNum, isRunningStatus, toIsoDate } from '../../utils/format'
+import {
+  fmtMoney, fmtDate, fmtPercent, parseNum, isRunningStatus, toIsoDate, budgetLevel, projectPriceNet,
+} from '../../utils/format'
 
-// Prehľad: bežiace projekty vždy; finančné čísla len s príslušnými právami.
 export default function Dashboard() {
   const { can } = useAuth()
+  const navigate = useNavigate()
   const [state, setState] = useState({ loading: true, error: null, data: null })
 
   const showFinance = can('perm_invoices_full')
@@ -15,12 +18,13 @@ export default function Dashboard() {
   const load = async () => {
     setState({ loading: true, error: null, data: null })
     try {
-      const [projects, incoming, invoices] = await Promise.all([
+      const [projects, incoming, invoices, warnings] = await Promise.all([
         showProjects ? apiCall('getProjects') : Promise.resolve([]),
         showFinance ? apiCall('getIncomingInvoices') : Promise.resolve([]),
         showFinance ? apiCall('getInvoices') : Promise.resolve([]),
+        showProjects ? apiCall('getBudgetWarnings') : Promise.resolve([]),
       ])
-      setState({ loading: false, error: null, data: { projects, incoming, invoices } })
+      setState({ loading: false, error: null, data: { projects, incoming, invoices, warnings } })
     } catch (e) {
       setState({ loading: false, error: e, data: null })
     }
@@ -31,12 +35,13 @@ export default function Dashboard() {
   if (state.loading) return <Spinner />
   if (state.error) return <ErrorBox error={state.error} onRetry={load} />
 
-  const { projects, incoming, invoices } = state.data
+  const { projects, incoming, invoices, warnings } = state.data
   const running = projects.filter(p => isRunningStatus(p.status))
   const unpaid = incoming.filter(i => i.status === 'Nezaplatená')
   const unpaidSum = unpaid.reduce((s, i) => s + parseNum(i.amountGross), 0)
   const issuedUnpaid = invoices.filter(i => i.status !== 'Uhradená' && i.status !== 'Zaplatená')
   const today = toIsoDate(new Date().toISOString())
+  const topWarnings = warnings.slice(0, 8)
 
   return (
     <div className="page">
@@ -50,6 +55,13 @@ export default function Dashboard() {
           <div className="stat-value">{running.length}</div>
           <div className="stat-sub">{projects.length} celkom</div>
         </div>
+        {showProjects && warnings.length > 0 && (
+          <div className="stat-card">
+            <div className="stat-label">Blízko limitu rozpočtu</div>
+            <div className="stat-value budget-label-warn">{warnings.length}</div>
+            <div className="stat-sub">≥ 90 % ceny zákazky</div>
+          </div>
+        )}
         {showFinance && (
           <>
             <div className="stat-card">
@@ -66,26 +78,53 @@ export default function Dashboard() {
         )}
       </div>
 
+      {showProjects && topWarnings.length > 0 && (
+        <section className="card">
+          <h2>Projekty blízko limitu rozpočtu</h2>
+          <table className="table table-click">
+            <thead>
+              <tr><th>Projekt</th><th>Zákazník</th><th className="num">Náklady / cena</th><th className="num">%</th></tr>
+            </thead>
+            <tbody>
+              {topWarnings.map(w => {
+                const level = budgetLevel(w.costPercent)
+                return (
+                  <tr key={w.id}>
+                    <td><Link to={'/projekty/' + w.id}>{w.name}</Link></td>
+                    <td>{w.customer}</td>
+                    <td className="num">{fmtMoney(w.totalCost)} / {fmtMoney(w.price)}</td>
+                    <td className={'num' + (level === 'over' ? ' budget-label-over' : ' budget-label-warn')}>
+                      {level === 'over' ? '🔴 ' : '⚠ '}{fmtPercent(w.costPercent)}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </section>
+      )}
+
       {showProjects && (
         <section className="card">
           <h2>Bežiace projekty</h2>
           {running.length === 0 ? (
             <p className="muted">Žiadne bežiace projekty.</p>
           ) : (
-            <table className="table">
+            <table className="table table-click">
               <thead>
-                <tr><th>Projekt</th><th>Zákazník</th><th>Stav</th><th>Termín</th><th className="num">Cena</th></tr>
+                <tr><th>Projekt</th><th>ID</th><th>Zákazník</th><th>Stav</th><th>Termín</th><th className="num">Cena bez DPH</th></tr>
               </thead>
               <tbody>
                 {running.map(p => {
                   const overdue = p.deadline && toIsoDate(p.deadline) < today
                   return (
-                    <tr key={p.id}>
-                      <td>{p.name}</td>
+                    <tr key={p.id} onClick={() => navigate('/projekty/' + p.id)} style={{ cursor: 'pointer' }}>
+                      <td><Link to={'/projekty/' + p.id} onClick={e => e.stopPropagation()}>{p.name}</Link></td>
+                      <td className="project-id">{p.id}</td>
                       <td>{p.customer}</td>
                       <td><StatusBadge status={p.status} /></td>
                       <td className={overdue ? 'overdue' : ''}>{fmtDate(p.deadline)}{overdue ? ' ⚠' : ''}</td>
-                      <td className="num">{fmtMoney(p.price)}</td>
+                      <td className="num">{fmtMoney(projectPriceNet(p))}</td>
                     </tr>
                   )
                 })}

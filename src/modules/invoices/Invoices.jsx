@@ -4,6 +4,17 @@ import { Spinner, ErrorBox } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import Modal from '../../components/Modal'
 import { fmtMoney, fmtDate, parseNum, toIsoDate, invoiceMonth, fmtMonth } from '../../utils/format'
+import CreateIssuedInvoiceForm, { TYPE_LABELS } from './CreateIssuedInvoiceForm'
+
+function displayInvoiceNumber(inv) {
+  const n = inv.number || ''
+  if (inv.type === 'zalohova') return n
+  return n.replace(/^F/i, '')
+}
+
+function hasOstraForAdvance(invoices, advanceId) {
+  return invoices.some(i => i.type === 'ostra' && String(i.relatedInvoiceId) === String(advanceId))
+}
 
 // Faktúry: Prijaté (predvolená záložka, filter mesiac/stav/dodávateľ) + Vydané.
 
@@ -144,7 +155,7 @@ function IssuedForm({ invoice, projects, onClose, onSaved }) {
 export default function Invoices() {
   const toast = useToast()
   const [state, setState] = useState({ loading: true, error: null })
-  const [data, setData] = useState({ incoming: [], invoices: [], projects: [] })
+  const [data, setData] = useState({ incoming: [], invoices: [], projects: [], customers: [] })
   const [tab, setTab] = useState('prijate')
   const [filt, setFilt] = useState({ month: '', status: '', vendor: '' })
   const [modal, setModal] = useState(null) // {type:'incoming',inv} | {type:'issued',inv} | 'new-issued'
@@ -152,10 +163,11 @@ export default function Invoices() {
   const load = async () => {
     setState({ loading: true, error: null })
     try {
-      const [incoming, invoices, projects] = await Promise.all([
+      const [incoming, invoices, projects, customers] = await Promise.all([
         apiCall('getIncomingInvoices'), apiCall('getInvoices'), apiCall('getProjects'),
+        apiCall('getCustomers').catch(() => []),
       ])
-      setData({ incoming, invoices, projects })
+      setData({ incoming, invoices, projects, customers })
       setState({ loading: false, error: null })
     } catch (e) {
       setState({ loading: false, error: e })
@@ -180,6 +192,28 @@ export default function Invoices() {
   const issued = [...data.invoices]
     .sort((a, b) => (toIsoDate(b.issueDate) || '').localeCompare(toIsoDate(a.issueDate) || ''))
 
+  const toggleIssuedPaid = async (inv) => {
+    const next = inv.status === 'Uhradená' ? 'Neuhradená' : 'Uhradená'
+    try {
+      await apiCall('updateInvoice', { invoice: { id: inv.id, status: next } })
+      toast(next === 'Uhradená' ? 'Označená ako uhradená' : 'Označená ako neuhradená')
+      load()
+    } catch (e) {
+      toast('Nepodarilo sa uložiť: ' + e.message, 'err')
+    }
+  }
+
+  const createOstra = async (inv) => {
+    if (!window.confirm('Vystaviť ostrú faktúru k uhradenej zálohe ' + inv.number + '?')) return
+    try {
+      const r = await apiCall('createOstraInvoiceFromAdvance', { advanceInvoiceId: inv.id })
+      toast('Ostrá faktúra ' + (r.invoice?.number || '') + ' vystavená')
+      load()
+    } catch (e) {
+      toast('Nepodarilo sa vystaviť: ' + e.message, 'err')
+    }
+  }
+
   const togglePaid = async (inv) => {
     const next = inv.status === 'Zaplatená' ? 'Nezaplatená' : 'Zaplatená'
     try {
@@ -195,7 +229,7 @@ export default function Invoices() {
     <div className="page">
       <header className="page-head">
         <h1>Faktúry</h1>
-        {tab === 'vydane' && <button className="btn" onClick={() => setModal('new-issued')}>+ Nová vydaná faktúra</button>}
+        {tab === 'vydane' && <button className="btn" onClick={() => setModal('new-issued')}>+ Vystaviť faktúru</button>}
       </header>
 
       <div className="tabs">
@@ -262,19 +296,33 @@ export default function Invoices() {
           {issued.length === 0 ? <p className="muted">Zatiaľ žiadne vydané faktúry.</p> : (
             <table className="table">
               <thead>
-                <tr><th>Číslo</th><th>Projekt</th><th>Zákazník</th><th>Vystavená</th><th>Splatnosť</th><th>Stav</th><th className="num">Suma</th><th /></tr>
+                <tr><th>Číslo</th><th>Typ</th><th>Projekt</th><th>Zákazník</th><th>Vystavená</th><th>Stav</th><th className="num">Suma</th><th /></tr>
               </thead>
               <tbody>
                 {issued.map(i => (
                   <tr key={i.id}>
-                    <td className="strong">{i.number}</td>
+                    <td className="strong">
+                      {i.driveLink
+                        ? <a href={i.driveLink} target="_blank" rel="noreferrer">{displayInvoiceNumber(i)}</a>
+                        : displayInvoiceNumber(i)}
+                    </td>
+                    <td>{TYPE_LABELS[i.type] || i.type || '—'}</td>
                     <td>{i.project}</td>
                     <td>{i.customer}</td>
                     <td>{fmtDate(i.issueDate)}</td>
-                    <td>{fmtDate(i.dueDate)}</td>
-                    <td>{i.status}</td>
-                    <td className="num">{fmtMoney(i.amount)}</td>
+                    <td>
+                      <button
+                        className={'pill ' + (i.status === 'Uhradená' ? 'pill-ok' : 'pill-warn')}
+                        title="Kliknutím prepnete stav"
+                        onClick={() => toggleIssuedPaid(i)}
+                      >{i.status || 'Neuhradená'}</button>
+                    </td>
+                    <td className="num">{fmtMoney(i.amountGross || i.amount)}</td>
                     <td className="row-action">
+                      {i.type === 'zalohova' && i.status === 'Uhradená' && !hasOstraForAdvance(data.invoices, i.id) && (
+                        <button className="btn btn-sm btn-secondary" style={{ marginRight: 6 }}
+                          onClick={() => createOstra(i)}>Ostrá faktúra</button>
+                      )}
                       <button className="icon-btn" title="Upraviť" onClick={() => setModal({ type: 'issued', inv: i })}>✎</button>
                     </td>
                   </tr>
@@ -288,8 +336,16 @@ export default function Invoices() {
       {modal?.type === 'incoming' && (
         <IncomingEdit invoice={modal.inv} projects={data.projects} onClose={() => setModal(null)} onSaved={() => { setModal(null); load() }} />
       )}
-      {(modal === 'new-issued' || modal?.type === 'issued') && (
-        <IssuedForm invoice={modal === 'new-issued' ? null : modal.inv} projects={data.projects} onClose={() => setModal(null)} onSaved={() => { setModal(null); load() }} />
+      {modal === 'new-issued' && (
+        <CreateIssuedInvoiceForm
+          projects={data.projects}
+          customers={data.customers}
+          onClose={() => setModal(null)}
+          onSaved={() => { setModal(null); load() }}
+        />
+      )}
+      {modal?.type === 'issued' && (
+        <IssuedForm invoice={modal.inv} projects={data.projects} onClose={() => setModal(null)} onSaved={() => { setModal(null); load() }} />
       )}
     </div>
   )

@@ -1,9 +1,7 @@
 // Prihlásenie cez Google Identity Services (GIS) + profil a práva z getMe.
 //
-// Stavy: loading (zisťuje sa uložené prihlásenie) -> signedOut | signedIn.
-// Pri expirácii tokenu sa skúsi tiché obnovenie; ak zlyhá, nastaví sa
-// `expired` a nad appkou sa zobrazí prihlasovacie okno — rozpísané
-// formuláre zostávajú v stave, nič sa nestráca.
+// Token sa ukladá do localStorage a pred expiráciou sa ticho obnoví cez GIS.
+// Pri expirácii sa najprv skúsi One Tap, až potom prihlasovacie okno.
 
 import { createContext, useContext, useEffect, useCallback, useState, useRef } from 'react'
 import { GOOGLE_CLIENT_ID } from '../config'
@@ -12,6 +10,9 @@ import { bindAuth, apiCall } from '../api/client'
 const AuthContext = createContext(null)
 
 const TOKEN_KEY = 'pcw_token'
+const SESSION_HINT_KEY = 'pcw_signed_in'
+const REFRESH_MARGIN_MS = 10 * 60_000
+const REFRESH_CHECK_MS = 4 * 60_000
 
 function tokenExp(token) {
   try {
@@ -21,35 +22,63 @@ function tokenExp(token) {
   }
 }
 
+function readStoredToken() {
+  const fromLocal = localStorage.getItem(TOKEN_KEY)
+  if (fromLocal) return fromLocal
+  const fromSession = sessionStorage.getItem(TOKEN_KEY)
+  if (fromSession) {
+    localStorage.setItem(TOKEN_KEY, fromSession)
+    sessionStorage.removeItem(TOKEN_KEY)
+    return fromSession
+  }
+  return null
+}
+
 function validToken() {
-  const t = sessionStorage.getItem(TOKEN_KEY)
+  const t = readStoredToken()
   return t && tokenExp(t) > Date.now() + 60_000 ? t : null
 }
 
+function persistToken(token) {
+  localStorage.setItem(TOKEN_KEY, token)
+  localStorage.setItem(SESSION_HINT_KEY, '1')
+  sessionStorage.removeItem(TOKEN_KEY)
+}
+
+function clearStoredAuth() {
+  localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(SESSION_HINT_KEY)
+  sessionStorage.removeItem(TOKEN_KEY)
+}
+
+function promptRenewal() {
+  if (!window.google?.accounts?.id) return false
+  window.google.accounts.id.prompt()
+  return true
+}
+
 export function AuthProvider({ children }) {
-  const [status, setStatus] = useState('loading') // loading | signedOut | signedIn
+  const [status, setStatus] = useState('loading')
   const [expired, setExpired] = useState(false)
   const [me, setMe] = useState(null)
   const [loginError, setLoginError] = useState('')
   const tokenRef = useRef(validToken())
 
   const handleUnauthorized = useCallback(() => {
-    // token už neplatí — skúsi sa tiché obnovenie cez One Tap, inak prihlasovacie okno
-    sessionStorage.removeItem(TOKEN_KEY)
     tokenRef.current = null
+    localStorage.removeItem(TOKEN_KEY)
     setExpired(true)
-    if (window.google) window.google.accounts.id.prompt()
+    if (!promptRenewal()) setStatus('signedOut')
   }, [])
 
   useEffect(() => {
     bindAuth({ token: () => tokenRef.current, unauthorized: handleUnauthorized })
   }, [handleUnauthorized])
 
-  // Spracovanie tokenu z Google tlačidla / One Tap
   const onCredential = useCallback(async (response) => {
     const token = response.credential
     tokenRef.current = token
-    sessionStorage.setItem(TOKEN_KEY, token)
+    persistToken(token)
     setLoginError('')
     try {
       const profile = await apiCall('getMe')
@@ -57,8 +86,8 @@ export function AuthProvider({ children }) {
       setStatus('signedIn')
       setExpired(false)
     } catch (e) {
+      clearStoredAuth()
       tokenRef.current = null
-      sessionStorage.removeItem(TOKEN_KEY)
       setMe(null)
       setStatus('signedOut')
       setLoginError(
@@ -69,7 +98,6 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  // Inicializácia GIS po načítaní knižnice
   const onCredentialRef = useRef(onCredential)
   useEffect(() => { onCredentialRef.current = onCredential }, [onCredential])
   const [gisReady, setGisReady] = useState(false)
@@ -86,15 +114,26 @@ export function AuthProvider({ children }) {
         client_id: GOOGLE_CLIENT_ID,
         callback: (r) => onCredentialRef.current(r),
         auto_select: true,
+        itp_support: true,
+        cancel_on_tap_outside: false,
       })
       setGisReady(true)
-      // pokus o obnovenie existujúceho sedenia
+
       const saved = validToken()
       if (saved) {
         tokenRef.current = saved
         apiCall('getMe')
-          .then((profile) => { if (!cancelled) { setMe(profile); setStatus('signedIn') } })
-          .catch(() => { if (!cancelled) setStatus('signedOut') })
+          .then((profile) => { if (!cancelled) { setMe(profile); setStatus('signedIn'); setExpired(false) } })
+          .catch(() => {
+            if (cancelled) return
+            if (localStorage.getItem(SESSION_HINT_KEY)) promptRenewal()
+            else setStatus('signedOut')
+          })
+      } else if (localStorage.getItem(SESSION_HINT_KEY)) {
+        promptRenewal()
+        setTimeout(() => {
+          if (!cancelled && !tokenRef.current) setStatus('signedOut')
+        }, 4000)
       } else {
         setStatus('signedOut')
       }
@@ -103,8 +142,20 @@ export function AuthProvider({ children }) {
     return () => { cancelled = true }
   }, [])
 
+  useEffect(() => {
+    if (status !== 'signedIn') return
+    const tick = () => {
+      const t = tokenRef.current
+      if (!t) return
+      if (tokenExp(t) - Date.now() < REFRESH_MARGIN_MS) promptRenewal()
+    }
+    tick()
+    const id = setInterval(tick, REFRESH_CHECK_MS)
+    return () => clearInterval(id)
+  }, [status])
+
   const signOut = useCallback(() => {
-    sessionStorage.removeItem(TOKEN_KEY)
+    clearStoredAuth()
     tokenRef.current = null
     setMe(null)
     setExpired(false)

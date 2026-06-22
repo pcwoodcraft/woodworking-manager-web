@@ -1,16 +1,42 @@
-# React + Vite
+# PCW Manager (woodworking-manager-web)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React frontend pre interný systém stolárstva — zákazníci, projekty, faktúry, náklady, zamestnanci, dashboard.
 
-Currently, two official plugins are available:
+Živý prehľad projektu: [`../woodworking-manager-stav-a-plan.md`](../woodworking-manager-stav-a-plan.md)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Technológie
 
-## React Compiler
+- React 19 + Vite
+- Google Identity Services (prihlásenie cez firemný Google účet)
+- Backend: Google Apps Script API 2.0 (`woodworking-manager-gas`)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Vývoj
 
-## Expanding the ESLint configuration
+```bash
+npm install
+npm run dev
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Aplikácia beží na `http://localhost:5173`. OAuth client musí mať tento origin v Google Cloud Console.
+
+## Konfigurácia
+
+Identifikátory v `src/config.js`:
+
+- `API_URL` — URL nasadeného Apps Script web app
+- `GOOGLE_CLIENT_ID` — OAuth client ID pre GIS
+
+## Deploy
+
+Push do vetvy `main` spustí GitHub Actions workflow (`.github/workflows/deploy.yml`) a nasadí build na GitHub Pages. Vite `base: './'` kvôli hostingu v podpriečinku.
+
+## Štruktúra
+
+```
+src/
+  api/          API klient (token, retry, chyby)
+  auth/         prihlásenie, práva, RequirePerm
+  components/   Layout, Modal, Toast, UI
+  modules/      dashboard, customers, projects, invoices, costs, employees, admin
+  utils/        formátovanie dátumov a súm (SK)
+```

@@ -25,7 +25,7 @@
 html, body, #root { height: 100%; }
 
 body {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: 'DM Sans', 'Segoe UI', Roboto, system-ui, sans-serif;
   background: var(--paper);
   color: var(--text);
   font-size: 14.5px;
@@ -175,9 +175,36 @@ button { font: inherit; cursor: pointer; }
 .badge-priprava  { background: #ece7f5; color: var(--violet); }
 .badge-vyroba    { background: #e3edd9; color: #4a6b2a; }
 .badge-montaz    { background: #dceaf5; color: var(--blue); }
-.badge-odovzdany { background: #f5ecd2; color: #8a6d1f; }
-.badge-uzavrety  { background: #e6e3dc; color: var(--text-2); }
+.badge-odovzdany { background: #e6e3dc; color: var(--text-2); }
 .badge-zruseny   { background: #f3ddd5; color: var(--red); }
+
+.budget-bar { margin-top: 8px; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.budget-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+.budget-fill-ok { background: #6b9e45; }
+.budget-fill-warn { background: #c9a227; }
+.budget-fill-over { background: var(--red); }
+.budget-label-warn { color: #8a6d1f; font-weight: 600; }
+.budget-label-over { color: var(--red); font-weight: 600; }
+.budget-breakdown { display: grid; gap: 6px; margin-top: 12px; font-size: 14px; }
+.budget-breakdown .row { display: flex; justify-content: space-between; }
+.admin-tools { display: flex; flex-direction: column; gap: 12px; }
+.admin-tool { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.admin-tool:last-child { border-bottom: none; }
+.admin-tool p { flex: 1; min-width: 200px; margin: 0; }
+.admin-backup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.admin-backup h2 { font-size: 16px; margin-bottom: 0; }
+.project-id {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  color: var(--text-2);
+  letter-spacing: 0.3px;
+}
 
 /* ── Tlačidlá, stavy ─────────────────────────────────────── */
 .btn {

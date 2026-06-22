@@ -4,7 +4,7 @@ import { apiCall } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox, StatusBadge } from '../../components/ui'
 import ProjectForm from './ProjectForm'
-import { fmtMoney, fmtDate, toIsoDate, PROJECT_STATUSES, normalizeStatus } from '../../utils/format'
+import { fmtMoney, fmtDate, fmtPercent, toIsoDate, PROJECT_STATUSES, normalizeStatus, isRunningStatus, budgetLevel, priorityLabel, sortProjectsForSchedule, projectPriceNet } from '../../utils/format'
 
 export default function Projects() {
   const { can } = useAuth()
@@ -13,6 +13,7 @@ export default function Projects() {
   const [state, setState] = useState({ loading: true, error: null })
   const [projects, setProjects] = useState([])
   const [customers, setCustomers] = useState([])
+  const [warnings, setWarnings] = useState([])
   const [statusFilter, setStatusFilter] = useState('bezici')
   const [search, setSearch] = useState('')
   const [form, setForm] = useState(null) // null | 'new' | projekt na úpravu
@@ -20,12 +21,14 @@ export default function Projects() {
   const load = async () => {
     setState({ loading: true, error: null })
     try {
-      const [p, c] = await Promise.all([
+      const [p, c, w] = await Promise.all([
         apiCall('getProjects'),
         can('perm_customers') ? apiCall('getCustomers') : Promise.resolve([]),
+        apiCall('getBudgetWarnings').catch(() => []),
       ])
       setProjects(p)
       setCustomers(c)
+      setWarnings(w)
       setState({ loading: false, error: null })
     } catch (e) {
       setState({ loading: false, error: e })
@@ -37,19 +40,24 @@ export default function Projects() {
   if (state.loading) return <Spinner />
   if (state.error) return <ErrorBox error={state.error} onRetry={load} />
 
+  const warningMap = Object.fromEntries(warnings.map(w => [String(w.id), w]))
+
   const visible = projects
     .filter(p => {
       const norm = normalizeStatus(p.status)
-      if (statusFilter === 'bezici') return norm !== 'uzavrety' && norm !== 'zruseny'
+      if (statusFilter === 'bezici') return isRunningStatus(p.status)
       if (statusFilter === '') return true
       return norm === statusFilter
     })
     .filter(p => {
       const q = search.trim().toLowerCase()
       if (!q) return true
-      return (p.name || '').toLowerCase().includes(q) || (p.customer || '').toLowerCase().includes(q)
+      return (p.name || '').toLowerCase().includes(q) || (p.customer || '').toLowerCase().includes(q) || (p.id || '').toLowerCase().includes(q)
     })
-    .sort((a, b) => (toIsoDate(b.deadline) || '9999').localeCompare(toIsoDate(a.deadline) || '9999'))
+    .sort((a, b) => {
+      if (statusFilter === 'bezici') return sortProjectsForSchedule(a, b)
+      return (toIsoDate(b.deadline) || '9999').localeCompare(toIsoDate(a.deadline) || '9999')
+    })
 
   return (
     <div className="page">
@@ -61,7 +69,7 @@ export default function Projects() {
       <div className="filter-bar">
         <input
           className="filter-search"
-          placeholder="Hľadať projekt alebo zákazníka…"
+          placeholder="Hľadať projekt, ID alebo zákazníka…"
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
@@ -78,16 +86,24 @@ export default function Projects() {
         ) : (
           <table className="table table-click">
             <thead>
-              <tr><th>Projekt</th><th>Zákazník</th><th>Stav</th><th>Termín</th><th className="num">Cena</th>{canWrite && <th />}</tr>
+              <tr><th>Projekt</th><th>ID</th><th>Zákazník</th><th>Stav</th><th>Priorita</th><th>Termín</th><th className="num">Cena bez DPH</th><th className="num">Náklady</th>{canWrite && <th />}</tr>
             </thead>
             <tbody>
-              {visible.map(p => (
+              {visible.map(p => {
+                const w = warningMap[String(p.id)]
+                const level = w ? budgetLevel(w.costPercent) : 'none'
+                return (
                 <tr key={p.id} onClick={() => navigate('/projekty/' + p.id)}>
                   <td className="strong">{p.name}</td>
+                  <td className="project-id">{p.id}</td>
                   <td>{p.customer}</td>
                   <td><StatusBadge status={p.status} /></td>
+                  <td>{priorityLabel(p.priority)}</td>
                   <td>{fmtDate(p.deadline)}</td>
-                  <td className="num">{fmtMoney(p.price)}</td>
+                  <td className="num">{fmtMoney(projectPriceNet(p))}</td>
+                  <td className={'num' + (level === 'over' ? ' budget-label-over' : level === 'warn' ? ' budget-label-warn' : '')}>
+                    {w ? fmtPercent(w.costPercent) : '—'}
+                  </td>
                   {canWrite && (
                     <td className="row-action">
                       <button
@@ -98,7 +114,8 @@ export default function Projects() {
                     </td>
                   )}
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         )}

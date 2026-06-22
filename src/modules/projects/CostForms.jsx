@@ -3,30 +3,36 @@ import Modal from '../../components/Modal'
 import { useToast } from '../../components/Toast'
 import { apiCall } from '../../api/client'
 import { fmtMoney, fmtDate, parseNum } from '../../utils/format'
+import CreateIssuedInvoiceForm from '../invoices/CreateIssuedInvoiceForm'
 
 // Ručné pridávanie nákladov a faktúr ku konkrétnemu projektu (zadanie 6.4.3).
 
-export function MaterialForm({ project, onClose, onSaved }) {
+export function MaterialForm({ project, item, onClose, onSaved }) {
   const toast = useToast()
   const [saving, setSaving] = useState(false)
-  const [f, setF] = useState({ name: '', amount: '', category: '', notes: '' })
+  const editing = !!item
+  const [f, setF] = useState({
+    name: item?.name || '',
+    amount: item?.amount ?? '',
+    category: item?.category || '',
+    notes: item?.notes || '',
+  })
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
 
   const save = async () => {
     if (!f.name.trim() || f.amount === '') { toast('Vyplňte názov a sumu', 'err'); return }
     setSaving(true)
     try {
-      await apiCall('addMaterialItem', {
-        item: {
-          id: 'MI' + Date.now(),
-          projectId: project.id,
-          name: f.name.trim(),
-          amount: parseNum(f.amount),
-          category: f.category.trim(),
-          notes: f.notes,
-        },
-      })
-      toast('Materiál pridaný')
+      const row = {
+        id: item?.id || ('MI' + Date.now()),
+        projectId: project.id,
+        name: f.name.trim(),
+        amount: parseNum(f.amount),
+        category: f.category.trim(),
+        notes: f.notes,
+      }
+      await apiCall(editing ? 'updateMaterialItem' : 'addMaterialItem', { item: row })
+      toast(editing ? 'Materiál upravený' : 'Materiál pridaný')
       onSaved()
     } catch (e) {
       toast('Nepodarilo sa uložiť: ' + e.message, 'err')
@@ -35,7 +41,7 @@ export function MaterialForm({ project, onClose, onSaved }) {
   }
 
   return (
-    <Modal title={'Pridať materiál — ' + project.name} onClose={onClose}
+    <Modal title={(editing ? 'Upraviť materiál' : 'Pridať materiál') + ' — ' + project.name} onClose={onClose}
       footer={<>
         <button className="btn btn-secondary" onClick={onClose}>Zrušiť</button>
         <button className="btn" onClick={save} disabled={saving}>{saving ? 'Ukladá sa…' : 'Uložiť'}</button>
@@ -120,56 +126,8 @@ export function IncomingInvoiceForm({ project, onClose, onSaved }) {
 }
 
 export function IssuedInvoiceForm({ project, onClose, onSaved }) {
-  const toast = useToast()
-  const [saving, setSaving] = useState(false)
-  const [f, setF] = useState({ number: '', amount: '', status: 'Neuhradená', issueDate: '', dueDate: '', notes: '' })
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
-
-  const save = async () => {
-    if (!f.number.trim() || f.amount === '') { toast('Vyplňte číslo faktúry a sumu', 'err'); return }
-    setSaving(true)
-    try {
-      await apiCall('addInvoice', {
-        invoice: {
-          id: 'I' + Date.now(),
-          number: f.number.trim(),
-          projectId: project.id,
-          project: project.name,
-          customer: project.customer,
-          amount: parseNum(f.amount),
-          status: f.status,
-          issueDate: f.issueDate,
-          dueDate: f.dueDate,
-          notes: f.notes,
-        },
-      })
-      toast('Vydaná faktúra pridaná')
-      onSaved()
-    } catch (e) {
-      toast('Nepodarilo sa uložiť: ' + e.message, 'err')
-      setSaving(false)
-    }
-  }
-
   return (
-    <Modal title={'Vydaná faktúra — ' + project.name} onClose={onClose}
-      footer={<>
-        <button className="btn btn-secondary" onClick={onClose}>Zrušiť</button>
-        <button className="btn" onClick={save} disabled={saving}>{saving ? 'Ukladá sa…' : 'Uložiť'}</button>
-      </>}>
-      <div className="form-grid">
-        <label className="field"><span>Číslo faktúry *</span><input value={f.number} onChange={set('number')} /></label>
-        <label className="field"><span>Suma (€) *</span><input type="number" value={f.amount} onChange={set('amount')} /></label>
-        <label className="field"><span>Vystavená</span><input type="date" value={f.issueDate} onChange={set('issueDate')} /></label>
-        <label className="field"><span>Splatnosť</span><input type="date" value={f.dueDate} onChange={set('dueDate')} /></label>
-        <label className="field"><span>Stav</span>
-          <select value={f.status} onChange={set('status')}>
-            <option>Neuhradená</option><option>Uhradená</option>
-          </select>
-        </label>
-        <label className="field span-2"><span>Poznámky</span><textarea rows={2} value={f.notes} onChange={set('notes')} /></label>
-      </div>
-    </Modal>
+    <CreateIssuedInvoiceForm project={project} onClose={onClose} onSaved={onSaved} />
   )
 }
 

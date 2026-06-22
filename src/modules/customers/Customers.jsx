@@ -16,6 +16,8 @@ function CustomerForm({ customer, onClose, onSaved }) {
     phone: customer?.phone || '',
     email: customer?.email || '',
     address: customer?.address || '',
+    vatId: customer?.vatId || '',
+    country: customer?.country || '',
     lastContact: toIsoDate(customer?.lastContact) || '',
     notes: customer?.notes || '',
   })
@@ -48,6 +50,8 @@ function CustomerForm({ customer, onClose, onSaved }) {
         <label className="field"><span>Meno</span><input value={f.firstName} onChange={set('firstName')} /></label>
         <label className="field"><span>Priezvisko</span><input value={f.lastName} onChange={set('lastName')} /></label>
         <label className="field span-2"><span>Firma</span><input value={f.company} onChange={set('company')} /></label>
+        <label className="field"><span>IČ DPH / VAT ID</span><input value={f.vatId} onChange={set('vatId')} placeholder="napr. DE123456789" /></label>
+        <label className="field"><span>Krajina</span><input value={f.country} onChange={set('country')} placeholder="napr. Nemecko / DE" /></label>
         <label className="field"><span>Telefón</span><input value={f.phone} onChange={set('phone')} /></label>
         <label className="field"><span>Email</span><input type="email" value={f.email} onChange={set('email')} /></label>
         <label className="field"><span>Adresa</span><input value={f.address} onChange={set('address')} /></label>
