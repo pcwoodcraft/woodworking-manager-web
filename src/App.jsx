@@ -7,7 +7,10 @@ import { Spinner } from './components/ui'
 import Dashboard from './modules/dashboard/Dashboard'
 import Projects from './modules/projects/Projects'
 import ProjectDetail from './modules/projects/ProjectDetail'
-import Customers from './modules/customers/Customers'
+import CustomersLayout from './modules/customers/CustomersLayout'
+import CustomersList from './modules/customers/CustomersList'
+import CustomerDetail from './modules/customers/CustomerDetail'
+import QuickDealForm from './modules/customers/QuickDealForm'
 import Invoices from './modules/invoices/Invoices'
 import Costs from './modules/costs/Costs'
 import Employees from './modules/employees/Employees'
@@ -25,7 +28,11 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Dashboard />} />
-          <Route path="zakaznici" element={<RequirePerm perm="perm_customers"><Customers /></RequirePerm>} />
+          <Route path="zakaznici" element={<RequirePerm perm="perm_customers"><CustomersLayout /></RequirePerm>}>
+            <Route index element={<CustomersList />} />
+            <Route path="novy-dopyt" element={<QuickDealForm />} />
+            <Route path=":id" element={<CustomerDetail />} />
+          </Route>
           <Route path="projekty" element={<RequirePerm perm="perm_projects_read"><Projects /></RequirePerm>} />
           <Route path="projekty/:id" element={<RequirePerm perm="perm_projects_read"><ProjectDetail /></RequirePerm>} />
           <Route path="dielna" element={<RequirePerm perm="perm_projects_read"><Workshop /></RequirePerm>} />
