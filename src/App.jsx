@@ -11,6 +11,8 @@ import CustomersLayout from './modules/customers/CustomersLayout'
 import CustomersList from './modules/customers/CustomersList'
 import CustomerDetail from './modules/customers/CustomerDetail'
 import QuickDealForm from './modules/customers/QuickDealForm'
+import Pipeline from './modules/customers/Pipeline'
+import CrmToday from './modules/customers/CrmToday'
 import Invoices from './modules/invoices/Invoices'
 import Costs from './modules/costs/Costs'
 import Employees from './modules/employees/Employees'
@@ -31,6 +33,8 @@ export default function App() {
           <Route path="zakaznici" element={<RequirePerm perm="perm_customers"><CustomersLayout /></RequirePerm>}>
             <Route index element={<CustomersList />} />
             <Route path="novy-dopyt" element={<QuickDealForm />} />
+            <Route path="pipeline" element={<Pipeline />} />
+            <Route path="dnes" element={<CrmToday />} />
             <Route path=":id" element={<CustomerDetail />} />
           </Route>
           <Route path="projekty" element={<RequirePerm perm="perm_projects_read"><Projects /></RequirePerm>} />

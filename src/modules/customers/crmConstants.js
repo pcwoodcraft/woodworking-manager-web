@@ -90,3 +90,24 @@ export function customerTypeLabel(code) {
 export function customerStatusLabel(code) {
   return CUSTOMER_STATUSES.find(s => s.value === code)?.label || code || '—'
 }
+
+export const LOST_REASONS = [
+  { value: 'cena', label: 'Cena' },
+  { value: 'termin', label: 'Termín' },
+  { value: 'konkurencia', label: 'Konkurencia' },
+  { value: 'nereaguje', label: 'Klient nereaguje' },
+  { value: 'nerealny', label: 'Nereálny dopyt' },
+  { value: 'ine', label: 'Iné' },
+]
+
+export const STALE_DAYS = 7
+
+export const KANBAN_COLUMNS = [
+  ...DEAL_PHASES.map(p => ({ kind: 'phase', value: p.value, label: p.label })),
+  { kind: 'status', value: 'vyhrate', label: 'Vyhraté' },
+  { kind: 'status', value: 'prehrate', label: 'Prehrané' },
+]
+
+export function lostReasonLabel(code) {
+  return LOST_REASONS.find(r => r.value === code)?.label || code || '—'
+}
