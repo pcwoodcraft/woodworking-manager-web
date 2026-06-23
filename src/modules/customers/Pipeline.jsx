@@ -4,14 +4,12 @@ import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import { fmtMoney, parseNum } from '../../utils/format'
-import { KANBAN_COLUMNS, STALE_DAYS, isDealOpen } from './crmConstants'
+import { KANBAN_COLUMNS, STALE_DAYS, isDealOpen, dealKanbanColumn, isProductionDealPhase } from './crmConstants'
 import LostReasonModal from './LostReasonModal'
 import DealDetailModal from './DealDetailModal'
 
 function dealColumn(deal) {
-  if (deal.status === 'vyhrate') return { kind: 'status', value: 'vyhrate' }
-  if (deal.status === 'prehrate') return { kind: 'status', value: 'prehrate' }
-  return { kind: 'phase', value: deal.phase || 'novy_dopyt' }
+  return dealKanbanColumn(deal)
 }
 
 function columnKey(col) {
@@ -19,7 +17,9 @@ function columnKey(col) {
 }
 
 function DealCard({ deal, onDragStart, onClick }) {
-  const readOnly = deal.status === 'vyhrate'
+  const won = deal.status === 'vyhrate' || deal.phase === 'po_predaj'
+  const projectLinked = !!deal.projectId
+  const readOnly = won || (projectLinked && isProductionDealPhase(deal.phase))
   return (
     <div
       className={'kanban-card' + (deal.stale ? ' kanban-card-stale' : '') + (readOnly ? ' kanban-card-readonly' : '')}
@@ -122,8 +122,8 @@ export default function Pipeline() {
 
   const onDrop = (e, col) => {
     e.preventDefault()
-    if (col.kind === 'status' && col.value === 'vyhrate') {
-      toast('Stav „Vyhrané“ sa nastaví automaticky po odovzdaní projektu.', 'err')
+    if (col.kind === 'phase' && col.value === 'po_predaj') {
+      toast('Fáza Po-predaj sa nastaví automaticky po odovzdaní projektu.', 'err')
       setDragId(null)
       return
     }
@@ -169,20 +169,20 @@ export default function Pipeline() {
       </div>
 
       <p className="muted" style={{ marginBottom: 12 }}>
-        Ťahajte karty medzi stĺpcami fáz. Stĺpec „Vyhrané“ je len na prehľad — doplní sa po odovzdaní projektu. Pri prehre vyplníte dôvod.
+        Ťahajte karty medzi fázami predaja. Po vytvorení projektu riadi fázu stav projektu (Príprava → Výroba → Montáž → Po-predaj). Pri prehre vyplníte dôvod.
       </p>
 
       <div className="kanban-board">
         {KANBAN_COLUMNS.map(col => {
           const items = byColumn.get(columnKey(col)) || []
           const isEnd = col.kind === 'status'
-          const isWonCol = isEnd && col.value === 'vyhrate'
+          const isPoPredaj = col.kind === 'phase' && col.value === 'po_predaj'
           return (
             <div
               key={columnKey(col)}
-              className={'kanban-col' + (isEnd ? ' kanban-col-end kanban-col-' + col.value : '') + (isWonCol ? ' kanban-col-readonly' : '')}
-              onDragOver={e => { if (!isWonCol) e.preventDefault() }}
-              onDrop={isWonCol ? undefined : e => onDrop(e, col)}
+              className={'kanban-col' + (isEnd ? ' kanban-col-end kanban-col-' + col.value : '') + (isPoPredaj ? ' kanban-col-readonly' : '')}
+              onDragOver={e => { if (!isPoPredaj) e.preventDefault() }}
+              onDrop={isPoPredaj ? undefined : e => onDrop(e, col)}
             >
               <div className="kanban-col-head">
                 <span>{col.label}</span>

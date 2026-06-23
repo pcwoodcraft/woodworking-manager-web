@@ -7,10 +7,16 @@ export const DEAL_PHASES = [
   { value: 'cenova_ponuka', label: 'Cenová ponuka' },
   { value: 'vyjednavanie', label: 'Vyjednávanie' },
   { value: 'objednavka_zaloha', label: 'Objednávka + záloha' },
-  { value: 'vo_vyrobe', label: 'Vo výrobe' },
-  { value: 'dodanie', label: 'Dodanie / montáž' },
-  { value: 'po_predaj', label: 'Po-predaj' },
+  { value: 'priprava', label: 'Príprava' },
+  { value: 'vyroba', label: 'Výroba' },
+  { value: 'montaz', label: 'Montáž' },
+  { value: 'po_predaj', label: 'Po-predaj (uzavreté)' },
 ]
+
+const LEGACY_PHASE_LABELS = {
+  vo_vyrobe: 'Výroba',
+  dodanie: 'Montáž',
+}
 
 export const DEAL_STATUSES = [
   { value: 'otvoreny', label: 'Otvorený' },
@@ -66,7 +72,30 @@ export const CRM_TASK_PRIORITIES = [
 ]
 
 export function phaseLabel(code) {
-  return DEAL_PHASES.find(p => p.value === code)?.label || code || '—'
+  return DEAL_PHASES.find(p => p.value === code)?.label
+    || LEGACY_PHASE_LABELS[code]
+    || code || '—'
+}
+
+export const PRODUCTION_DEAL_PHASES = ['priprava', 'vyroba', 'montaz', 'po_predaj']
+
+export function normalizeDealPhase(phase) {
+  if (phase === 'vo_vyrobe') return 'vyroba'
+  if (phase === 'dodanie') return 'montaz'
+  return phase || 'novy_dopyt'
+}
+
+export function dealKanbanColumn(deal) {
+  if (deal.status === 'prehrate') return { kind: 'status', value: 'prehrate' }
+  const phase = normalizeDealPhase(deal.phase)
+  if (deal.status === 'vyhrate' || phase === 'po_predaj') {
+    return { kind: 'phase', value: 'po_predaj' }
+  }
+  return { kind: 'phase', value: phase }
+}
+
+export function isProductionDealPhase(phase) {
+  return PRODUCTION_DEAL_PHASES.includes(normalizeDealPhase(phase))
 }
 
 export function dealStatusLabel(code) {
@@ -104,7 +133,6 @@ export const STALE_DAYS = 7
 
 export const KANBAN_COLUMNS = [
   ...DEAL_PHASES.map(p => ({ kind: 'phase', value: p.value, label: p.label })),
-  { kind: 'status', value: 'vyhrate', label: 'Vyhraté' },
   { kind: 'status', value: 'prehrate', label: 'Prehrané' },
 ]
 
@@ -134,7 +162,7 @@ export function canConvertDealToProject(deal) {
 }
 
 export function isDealOpen(deal) {
-  return deal && deal.status !== 'prehrate'
+  return deal && deal.status === 'otvoreny'
 }
 
 export const CONTACT_TYPES = [

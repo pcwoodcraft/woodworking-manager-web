@@ -94,7 +94,7 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
   }
 
   const convertToProject = async () => {
-    if (!window.confirm('Vytvoriť projekt v IS z tohto dopytu? Dopyt ostane otvorený vo fáze „Vo výrobe“ a prepojí sa s projektom. Stav „Vyhrané“ sa nastaví až po odovzdaní projektu.')) return
+    if (!window.confirm('Vytvoriť projekt v IS z tohto dopytu? Dopyt sa prepojí s projektom vo fáze Príprava. Po-predaj (uzavreté) nastaví až odovzdanie projektu.')) return
     setSaving(true)
     try {
       const res = await apiCall('convertDealToProject', { dealId })

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { apiCall } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import { fmtDate, fmtMoney } from '../../utils/format'
 import { phaseLabel } from './crmConstants'
+import CrmTaskModal from './CrmTaskModal'
 
 function Section({ title, empty, children }) {
   return (
@@ -16,17 +17,19 @@ function Section({ title, empty, children }) {
   )
 }
 
-function TaskTable({ rows, onComplete }) {
+function TaskTable({ rows, onEdit, onComplete }) {
   return (
-    <table className="table">
-      <thead><tr><th>Termín</th><th>Úloha</th><th>Zákazník</th><th /></tr></thead>
+    <table className="table table-click">
+      <thead><tr><th>Termín</th><th>Úloha</th><th>Zákazník</th><th>Priorita</th><th /></tr></thead>
       <tbody>
         {rows.map(t => (
-          <tr key={t.id}>
+          <tr key={t.id} onClick={() => onEdit(t)}>
             <td className={t._overdue ? 'overdue' : ''}>{fmtDate(t.dueDate)}</td>
-            <td>{t.title}</td>
-            <td><Link to={'/zakaznici/' + t.customerId}>{t.customerName}</Link></td>
-            <td className="row-action">
+            <td className="strong">{t.title}</td>
+            <td><Link to={'/zakaznici/' + t.customerId} onClick={e => e.stopPropagation()}>{t.customerName}</Link></td>
+            <td>{t.priority || '—'}</td>
+            <td className="row-action" onClick={e => e.stopPropagation()}>
+              <button className="icon-btn" title="Upraviť" onClick={() => onEdit(t)}>✎</button>{' '}
               <button className="btn btn-sm btn-secondary" onClick={() => onComplete(t.id)}>Hotovo</button>
             </td>
           </tr>
@@ -59,11 +62,14 @@ function DealTable({ rows, overdueField }) {
 
 export default function CrmToday() {
   const toast = useToast()
+  const navigate = useNavigate()
   const { can } = useAuth()
   const isAdmin = can('perm_admin')
   const [mineOnly, setMineOnly] = useState(false)
   const [state, setState] = useState({ loading: true, error: null })
   const [data, setData] = useState(null)
+  const [editTask, setEditTask] = useState(null)
+  const [editDeals, setEditDeals] = useState([])
 
   const load = useCallback(async () => {
     setState({ loading: true, error: null })
@@ -77,11 +83,24 @@ export default function CrmToday() {
 
   useEffect(() => { load() }, [load])
 
+  const openEditTask = async (task) => {
+    try {
+      const detail = await apiCall('getCustomerDetail', { id: task.customerId })
+      setEditDeals(detail.deals || [])
+      setEditTask(task)
+    } catch (e) {
+      toast(e.message, 'err')
+    }
+  }
+
   const completeTask = async (id) => {
     try {
-      await apiCall('completeCrmTask', { id })
+      const res = await apiCall('completeCrmTask', { id })
       toast('Úloha dokončená')
       load()
+      if (res.task && window.confirm('Chcete zaznamenať novú aktivitu z tejto úlohy?')) {
+        navigate('/zakaznici/' + res.task.customerId)
+      }
     } catch (e) {
       toast(e.message, 'err')
     }
@@ -97,7 +116,7 @@ export default function CrmToday() {
   return (
     <>
       <div className="pipeline-toolbar">
-        <p className="muted">Prehľad na {fmtDate(data.date)} — úlohy, follow-upy a blížiace termíny.</p>
+        <p className="muted">Prehľad na {fmtDate(data.date)} — úlohy, follow-upy a blížiace termíny. Kliknutím upravíte úlohu.</p>
         {isAdmin && (
           <label className="switch-row pipeline-filter">
             <input type="checkbox" checked={mineOnly} onChange={e => setMineOnly(e.target.checked)} />
@@ -108,13 +127,13 @@ export default function CrmToday() {
 
       <Section title="Úlohy na dnes" empty={!data.tasksToday.length ? 'Dnes žiadne úlohy.' : null}>
         {data.tasksToday.length > 0 && (
-          <TaskTable rows={data.tasksToday} onComplete={completeTask} />
+          <TaskTable rows={data.tasksToday} onEdit={openEditTask} onComplete={completeTask} />
         )}
       </Section>
 
       <Section title="Oneskorené úlohy" empty={!tasksOverdue.length ? 'Žiadne oneskorené úlohy.' : null}>
         {tasksOverdue.length > 0 && (
-          <TaskTable rows={tasksOverdue} onComplete={completeTask} />
+          <TaskTable rows={tasksOverdue} onEdit={openEditTask} onComplete={completeTask} />
         )}
       </Section>
 
@@ -135,6 +154,16 @@ export default function CrmToday() {
           <DealTable rows={data.deadlinesSoon} overdueField="clientDeadline" />
         )}
       </Section>
+
+      {editTask && (
+        <CrmTaskModal
+          customerId={editTask.customerId}
+          deals={editDeals}
+          task={editTask}
+          onClose={() => setEditTask(null)}
+          onSaved={() => { setEditTask(null); load() }}
+        />
+      )}
     </>
   )
 }

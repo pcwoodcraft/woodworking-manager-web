@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { apiCall } from '../../api/client'
-import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox, StatusBadge } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import Modal from '../../components/Modal'
 import { fmtDate, fmtMoney } from '../../utils/format'
 import CustomerForm from './CustomerForm'
 import DealDetailModal from './DealDetailModal'
+import ActivityModal from './ActivityModal'
+import CrmTaskModal from './CrmTaskModal'
 import {
   ACTIVITY_TYPES, CRM_TASK_PRIORITIES, DEAL_PHASES, DEAL_SOURCES,
   customerDisplayName, customerStatusLabel, customerTypeLabel, contactTypeLabel,
@@ -70,137 +71,6 @@ function ContactModal({ customerId, contact, onClose, onSaved }) {
           <input value={f.decisionRole} onChange={set('decisionRole')} placeholder="rozhoduje / odporúča / vykonáva" />
         </label>
         <label className="field span-2"><span>Poznámky</span><textarea rows={2} value={f.notes} onChange={set('notes')} /></label>
-      </div>
-    </Modal>
-  )
-}
-
-function ActivityModal({ customerId, deals, contacts, initial, onClose, onSaved }) {
-  const toast = useToast()
-  const { me } = useAuth()
-  const [saving, setSaving] = useState(false)
-  const [f, setF] = useState({
-    type: initial?.type || 'hovor',
-    subject: initial?.subject || '',
-    outcome: initial?.outcome || '',
-    nextStep: initial?.nextStep || '',
-    followUpDate: initial?.followUpDate || '',
-    followUpPriority: initial?.followUpPriority || 'normalna',
-    dealId: initial?.dealId || '',
-    contactId: initial?.contactId || '',
-    contactName: initial?.contactName || '',
-    ownerEmail: me?.email || '',
-    notes: initial?.notes || '',
-  })
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
-
-  const onContactChange = (contactId) => {
-    const c = contacts.find(x => String(x.id) === String(contactId))
-    setF({ ...f, contactId, contactName: c ? c.name : '' })
-  }
-
-  const save = async () => {
-    if (!f.type) { toast('Vyberte typ', 'err'); return }
-    setSaving(true)
-    try {
-      await apiCall('addActivity', {
-        activity: { ...f, customerId, date: new Date().toISOString().slice(0, 10) },
-        followUpDate: f.followUpDate || undefined,
-        followUpPriority: f.followUpPriority,
-      })
-      toast(f.followUpDate && f.nextStep.trim() ? 'Aktivita a follow-up úloha pridané' : 'Aktivita pridaná')
-      onSaved()
-    } catch (e) {
-      toast(e.message, 'err')
-      setSaving(false)
-    }
-  }
-
-  return (
-    <Modal title="Nová aktivita" onClose={onClose}
-      footer={<>
-        <button className="btn btn-secondary" onClick={onClose}>Zrušiť</button>
-        <button className="btn" onClick={save} disabled={saving}>Uložiť</button>
-      </>}>
-      <div className="form-grid">
-        <label className="field"><span>Typ</span>
-          <select value={f.type} onChange={set('type')}>
-            {ACTIVITY_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
-        </label>
-        <label className="field"><span>Dopyt (voliteľné)</span>
-          <select value={f.dealId} onChange={set('dealId')}>
-            <option value="">—</option>
-            {deals.map(d => <option key={d.id} value={d.id}>{d.title || d.id}</option>)}
-          </select>
-        </label>
-        <label className="field span-2"><span>Téma</span><input value={f.subject} onChange={set('subject')} /></label>
-        <label className="field"><span>Kontaktná osoba</span>
-          <select value={f.contactId} onChange={e => onContactChange(e.target.value)}>
-            <option value="">—</option>
-            {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </label>
-        <label className="field"><span>Výsledok</span><input value={f.outcome} onChange={set('outcome')} /></label>
-        <label className="field span-2"><span>Ďalší krok</span><input value={f.nextStep} onChange={set('nextStep')} /></label>
-        <label className="field"><span>Termín follow-up</span>
-          <input type="date" value={f.followUpDate} onChange={set('followUpDate')} />
-        </label>
-        <label className="field"><span>Priorita úlohy</span>
-          <select value={f.followUpPriority} onChange={set('followUpPriority')}>
-            {CRM_TASK_PRIORITIES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-          </select>
-        </label>
-        <label className="field span-2"><span>Poznámky</span><textarea rows={2} value={f.notes} onChange={set('notes')} /></label>
-      </div>
-    </Modal>
-  )
-}
-
-function CrmTaskModal({ customerId, deals, onClose, onSaved }) {
-  const toast = useToast()
-  const { me } = useAuth()
-  const [saving, setSaving] = useState(false)
-  const [f, setF] = useState({
-    title: '', description: '', dueDate: '', priority: 'normalna', dealId: '',
-    owner: me?.name || me?.email || '',
-  })
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
-
-  const save = async () => {
-    if (!f.title.trim()) { toast('Vyplňte názov úlohy', 'err'); return }
-    setSaving(true)
-    try {
-      await apiCall('addCrmTask', { task: { ...f, customerId, status: 'otvorena' } })
-      toast('Úloha pridaná')
-      onSaved()
-    } catch (e) {
-      toast(e.message, 'err')
-      setSaving(false)
-    }
-  }
-
-  return (
-    <Modal title="Nová úloha / follow-up" onClose={onClose}
-      footer={<>
-        <button className="btn btn-secondary" onClick={onClose}>Zrušiť</button>
-        <button className="btn" onClick={save} disabled={saving}>Uložiť</button>
-      </>}>
-      <div className="form-grid">
-        <label className="field span-2"><span>Názov</span><input value={f.title} onChange={set('title')} /></label>
-        <label className="field"><span>Termín</span><input type="date" value={f.dueDate} onChange={set('dueDate')} /></label>
-        <label className="field"><span>Priorita</span>
-          <select value={f.priority} onChange={set('priority')}>
-            {CRM_TASK_PRIORITIES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-          </select>
-        </label>
-        <label className="field span-2"><span>Dopyt (voliteľné)</span>
-          <select value={f.dealId} onChange={set('dealId')}>
-            <option value="">—</option>
-            {deals.map(d => <option key={d.id} value={d.id}>{d.title || d.id}</option>)}
-          </select>
-        </label>
-        <label className="field span-2"><span>Popis</span><textarea rows={2} value={f.description} onChange={set('description')} /></label>
       </div>
     </Modal>
   )
@@ -481,15 +351,18 @@ export default function CustomerDetail() {
         </div>
         {activities.length === 0 ? <p className="muted">Žiadne aktivity.</p> : (
           <table className="table">
-            <thead><tr><th>Dátum</th><th>Typ</th><th>Téma</th><th>Výsledok</th><th>Ďalší krok</th></tr></thead>
+            <thead><tr><th>Dátum</th><th>Typ</th><th>Téma</th><th>Výsledok</th><th>Ďalší krok</th><th /></tr></thead>
             <tbody>
               {activities.map(a => (
-                <tr key={a.id}>
+                <tr key={a.id} className="table-click" onClick={() => setModal({ type: 'activity', item: a })}>
                   <td>{fmtDate(a.date)}</td>
                   <td>{ACTIVITY_TYPES.find(t => t.value === a.type)?.label || a.type}</td>
                   <td>{a.subject || '—'}</td>
                   <td>{a.outcome || '—'}</td>
                   <td>{a.nextStep || '—'}</td>
+                  <td className="row-action" onClick={e => e.stopPropagation()}>
+                    <button className="icon-btn" onClick={() => setModal({ type: 'activity', item: a })}>✎</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -507,7 +380,7 @@ export default function CustomerDetail() {
             <thead><tr><th>Termín</th><th>Názov</th><th>Typ</th><th>Priorita</th><th>Stav</th><th>Popis</th><th>Dopyt</th><th /></tr></thead>
             <tbody>
               {crmTasks.map(t => (
-                <tr key={t.id}>
+                <tr key={t.id} className="table-click" onClick={() => setModal({ type: 'task', item: t })}>
                   <td>{fmtDate(t.dueDate)}</td>
                   <td>{t.title}</td>
                   <td>{ACTIVITY_TYPES.find(x => x.value === t.type)?.label || t.type || '—'}</td>
@@ -515,7 +388,8 @@ export default function CustomerDetail() {
                   <td>{t.status === 'hotova' ? 'Hotová' : 'Otvorená'}</td>
                   <td>{t.description || '—'}</td>
                   <td>{t.dealId ? (deals.find(d => d.id === t.dealId)?.title || t.dealId) : '—'}</td>
-                  <td className="row-action">
+                  <td className="row-action" onClick={e => e.stopPropagation()}>
+                    <button className="icon-btn" onClick={() => setModal({ type: 'task', item: t })}>✎</button>
                     {t.status !== 'hotova' && (
                       <button className="btn btn-sm btn-secondary" onClick={() => completeTask(t.id)}>Hotovo</button>
                     )}
@@ -587,6 +461,7 @@ export default function CustomerDetail() {
           customerId={id}
           deals={deals}
           contacts={contacts}
+          activity={modal.item}
           initial={modal.initial}
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); load() }}
@@ -596,6 +471,7 @@ export default function CustomerDetail() {
         <CrmTaskModal
           customerId={id}
           deals={deals}
+          task={modal.item}
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); load() }}
         />
