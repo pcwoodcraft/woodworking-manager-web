@@ -7,6 +7,95 @@ import Modal from '../../components/Modal'
 import InvoiceSettingsPanel from './InvoiceSettingsPanel'
 import DiagnosticsPanel from './DiagnosticsPanel'
 
+function MigrationVerifyPanel() {
+  const toast = useToast()
+  const [state, setState] = useState({ loading: true, error: null, data: null })
+
+  const load = async () => {
+    setState({ loading: true, error: null, data: null })
+    try {
+      setState({ loading: false, error: null, data: await apiCall('verifyMigration') })
+    } catch (e) {
+      setState({ loading: false, error: e, data: null })
+      toast('Overenie zlyhalo: ' + e.message, 'err')
+    }
+  }
+
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (state.loading) return <div className="card" style={{ marginBottom: 20 }}><p className="muted">Overujem migráciu…</p></div>
+  if (state.error) return <div className="card" style={{ marginBottom: 20 }}><ErrorBox error={state.error} onRetry={load} /></div>
+
+  const v = state.data
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <div className="card-head">
+        <div>
+          <h2 style={{ marginBottom: 4 }}>Kontrola migrácie</h2>
+          <p className="muted">
+            {v.ok
+              ? 'Všetko vyzerá v poriadku — ID, prepojenia aj Drive.'
+              : 'Nájdené problémy — pozri detail nižšie.'}
+          </p>
+        </div>
+        <button className="btn btn-secondary" onClick={load}>Obnoviť kontrolu</button>
+      </div>
+      <div className="stat-grid" style={{ marginBottom: 12 }}>
+        <div className="stat-card">
+          <div className="stat-label">Neštandardné ID</div>
+          <div className={'stat-value stat-value-sm' + (v.idIssues?.length ? ' budget-label-warn' : '')}>{v.idIssues?.length || 0}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Zlomené prepojenia</div>
+          <div className={'stat-value stat-value-sm' + (v.fkIssueCount ? ' budget-label-warn' : '')}>{v.fkIssueCount || 0}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Drive nesúlad</div>
+          <div className={'stat-value stat-value-sm' + (v.driveIssues?.length ? ' budget-label-warn' : '')}>{v.driveIssues?.length || 0}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Čaká migrácia</div>
+          <div className="stat-value stat-value-sm">ID {v.idPendingCount || 0} / Drive {v.drivePendingCount || 0}</div>
+        </div>
+      </div>
+      {v.idIssues?.length > 0 && (
+        <>
+          <h3>Neštandardné ID</h3>
+          <table className="table"><tbody>
+            {v.idIssues.map((x, i) => (
+              <tr key={i}><td>{x.sheet}</td><td className="project-id">{x.id}</td><td>{x.issue}</td></tr>
+            ))}
+          </tbody></table>
+        </>
+      )}
+      {v.fkIssues?.length > 0 && (
+        <>
+          <h3>Zlomené prepojenia (ukážka)</h3>
+          <table className="table"><tbody>
+            {v.fkIssues.map((x, i) => (
+              <tr key={i}><td>{x.sheet}/{x.rowId}</td><td>{x.column}={x.value}</td><td>→ chýba v {x.missingIn}</td></tr>
+            ))}
+          </tbody></table>
+        </>
+      )}
+      {v.driveIssues?.length > 0 && (
+        <>
+          <h3>Drive — názov priečinka</h3>
+          <table className="table"><tbody>
+            {v.driveIssues.map((x, i) => (
+              <tr key={i}>
+                <td>{x.type} {x.id}</td>
+                <td>{x.currentName || x.error}</td>
+                <td>{x.expectedName || '—'}</td>
+              </tr>
+            ))}
+          </tbody></table>
+        </>
+      )}
+    </div>
+  )
+}
+
 function IdMigrationPanel() {
   const toast = useToast()
   const [preview, setPreview] = useState(null)
@@ -364,6 +453,8 @@ export default function Admin() {
       <DiagnosticsPanel />
 
       <IdMigrationPanel />
+
+      <MigrationVerifyPanel />
 
       <DriveMigrationPanel />
 
