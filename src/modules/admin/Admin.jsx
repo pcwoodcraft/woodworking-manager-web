@@ -7,6 +7,89 @@ import Modal from '../../components/Modal'
 import InvoiceSettingsPanel from './InvoiceSettingsPanel'
 import DiagnosticsPanel from './DiagnosticsPanel'
 
+function DriveMigrationPanel() {
+  const toast = useToast()
+  const [preview, setPreview] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [running, setRunning] = useState(false)
+
+  const loadPreview = async () => {
+    setLoading(true)
+    try {
+      setPreview(await apiCall('previewMigrateDriveToCustomers'))
+      toast('Náhľad migrácie pripravený')
+    } catch (e) {
+      toast('Chyba: ' + e.message, 'err')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const runMigration = async () => {
+    if (!window.confirm('Spustiť migráciu priečinkov projektov pod Zákazníci/? Odporúčame najprv zálohu databázy.')) return
+    setRunning(true)
+    try {
+      const result = await apiCall('migrateDriveToCustomers')
+      const msg = 'Migrácia: ' + result.processed + ' projektov, chýb: ' + (result.errors?.length || 0)
+      toast(msg, result.errors?.length ? 'err' : undefined)
+      await loadPreview()
+    } catch (e) {
+      toast('Chyba: ' + e.message, 'err')
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  const actionLabel = (a) => ({
+    ok: 'OK — už pod zákazníkom',
+    move: 'Presunúť',
+    create: 'Vytvoriť nový',
+    skip: 'Preskočiť',
+  }[a] || a)
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <div className="card-head">
+        <div>
+          <h2 style={{ marginBottom: 4 }}>Migrácia Drive → Zákazníci</h2>
+          <p className="muted">Presun existujúcich projektov z Projekty/ROK/ do Zákazníci/…/05_Projekty/.</p>
+        </div>
+        <div className="btn-group">
+          <button className="btn btn-secondary" disabled={loading || running} onClick={loadPreview}>
+            {loading ? 'Načítava sa…' : 'Náhľad'}
+          </button>
+          <button className="btn" disabled={!preview || running} onClick={runMigration}>
+            {running ? 'Beží…' : 'Spustiť migráciu'}
+          </button>
+        </div>
+      </div>
+      {preview && (
+        <>
+          <p className="muted" style={{ marginBottom: 10 }}>
+            Celkom {preview.total} projektov — presun: {preview.counts.move}, nové: {preview.counts.create},
+            OK: {preview.counts.ok}, preskočené: {preview.counts.skip}
+          </p>
+          <table className="table">
+            <thead>
+              <tr><th>Projekt</th><th>Zákazník</th><th>Akcia</th><th>Poznámka</th></tr>
+            </thead>
+            <tbody>
+              {preview.items.map(item => (
+                <tr key={item.projectId}>
+                  <td><span className="project-id">{item.projectId}</span> {item.projectName}</td>
+                  <td>{item.customerName || '—'}</td>
+                  <td>{actionLabel(item.action)}</td>
+                  <td className="muted">{item.oldPath ? item.oldPath + ' → ' : ''}{item.newPath || item.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  )
+}
+
 const PERM_LABELS = {
   perm_customers: 'Zákazníci (CRM)',
   perm_projects_read: 'Projekty — zobrazenie',
@@ -201,6 +284,8 @@ export default function Admin() {
       </div>
 
       <DiagnosticsPanel />
+
+      <DriveMigrationPanel />
 
       <div className="card admin-backup">
         <div>

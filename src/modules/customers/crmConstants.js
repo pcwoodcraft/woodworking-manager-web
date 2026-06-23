@@ -111,3 +111,24 @@ export const KANBAN_COLUMNS = [
 export function lostReasonLabel(code) {
   return LOST_REASONS.find(r => r.value === code)?.label || code || '—'
 }
+
+export const QUOTE_LINK_STATUSES = [
+  { value: 'koncept', label: 'Koncept' },
+  { value: 'odoslana', label: 'Odoslaná' },
+  { value: 'schvalena', label: 'Schválená' },
+  { value: 'zamietnuta', label: 'Zamietnutá' },
+  { value: 'expirovala', label: 'Expirovala' },
+]
+
+export function quoteStatusLabel(code) {
+  return QUOTE_LINK_STATUSES.find(s => s.value === code)?.label || code || '—'
+}
+
+const CONVERT_MIN_PHASE = 'objednavka_zaloha'
+
+export function canConvertDealToProject(deal) {
+  if (!deal || deal.projectId) return false
+  const minIdx = DEAL_PHASES.findIndex(p => p.value === CONVERT_MIN_PHASE)
+  const curIdx = DEAL_PHASES.findIndex(p => p.value === deal.phase)
+  return curIdx >= minIdx && minIdx >= 0
+}

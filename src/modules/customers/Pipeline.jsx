@@ -1,16 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { apiCall } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox } from '../../components/ui'
 import { useToast } from '../../components/Toast'
-import Modal from '../../components/Modal'
 import { fmtMoney, parseNum } from '../../utils/format'
-import {
-  DEAL_PHASES, KANBAN_COLUMNS, LOST_REASONS, STALE_DAYS,
-  sourceLabel,
-} from './crmConstants'
+import { KANBAN_COLUMNS, STALE_DAYS } from './crmConstants'
 import LostReasonModal from './LostReasonModal'
+import DealDetailModal from './DealDetailModal'
 
 function dealColumn(deal) {
   if (deal.status === 'vyhrate') return { kind: 'status', value: 'vyhrate' }
@@ -40,104 +36,8 @@ function DealCard({ deal, onDragStart, onClick }) {
       )}
       {deal.stale && <div className="kanban-stale-badge">Bez aktivity {deal.daysSinceActivity}+ dní</div>}
       {deal.owner && <div className="kanban-card-owner">{deal.owner}</div>}
+      {deal.projectId && <div className="kanban-card-sub">Projekt: {deal.projectId}</div>}
     </div>
-  )
-}
-
-function DealEditModal({ deal, onClose, onSaved }) {
-  const toast = useToast()
-  const [saving, setSaving] = useState(false)
-  const [f, setF] = useState({
-    phase: deal.phase || 'novy_dopyt',
-    status: deal.status || 'otvoreny',
-    lostReason: deal.lostReason || 'cena',
-    lostReasonOther: deal.lostReasonOther || '',
-  })
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
-
-  const movePhase = async () => {
-    setSaving(true)
-    try {
-      const res = await apiCall('moveDealPhase', { id: deal.id, phase: f.phase })
-      if (res.warning) toast(res.warning)
-      toast('Fáza uložená')
-      onSaved()
-    } catch (e) {
-      toast(e.message, 'err')
-      setSaving(false)
-    }
-  }
-
-  const markWon = async () => {
-    setSaving(true)
-    try {
-      await apiCall('moveDealPhase', { id: deal.id, status: 'vyhrate', phase: f.phase })
-      toast('Dopyt označený ako vyhraný')
-      onSaved()
-    } catch (e) {
-      toast(e.message, 'err')
-      setSaving(false)
-    }
-  }
-
-  const markLost = async () => {
-    if (f.status !== 'prehrate' && !f.lostReason) {
-      toast('Vyberte dôvod prehry', 'err'); return
-    }
-    setSaving(true)
-    try {
-      await apiCall('moveDealPhase', {
-        id: deal.id,
-        status: 'prehrate',
-        lostReason: f.lostReason,
-        lostReasonOther: f.lostReasonOther,
-      })
-      toast('Dopyt označený ako prehraný')
-      onSaved()
-    } catch (e) {
-      toast(e.message, 'err')
-      setSaving(false)
-    }
-  }
-
-  return (
-    <Modal title={deal.title || deal.id} onClose={onClose} wide
-      footer={<button className="btn btn-secondary" onClick={onClose}>Zavrieť</button>}>
-      <p className="muted" style={{ marginBottom: 12 }}>
-        <Link to={'/zakaznici/' + deal.customerId}>{deal.customerName}</Link>
-        {' · '}{deal.id}
-      </p>
-      <div className="form-grid">
-        <label className="field"><span>Fáza</span>
-          <select value={f.phase} onChange={set('phase')}>
-            {DEAL_PHASES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-          </select>
-        </label>
-        <label className="field"><span>Zdroj</span>
-          <input disabled value={sourceLabel(deal.source)} />
-        </label>
-        <label className="field"><span>Hodnota</span>
-          <input disabled value={deal.estimatedValue ? fmtMoney(deal.estimatedValue) : '—'} />
-        </label>
-        <label className="field"><span>Vážená hodnota</span>
-          <input disabled value={deal.weightedValue ? fmtMoney(deal.weightedValue) : '—'} />
-        </label>
-      </div>
-      <div className="btn-group" style={{ marginTop: 16 }}>
-        <button className="btn btn-sm" onClick={movePhase} disabled={saving}>Uložiť fázu</button>
-        <button className="btn btn-sm btn-secondary" onClick={markWon} disabled={saving}>Vyhrané</button>
-        <button className="btn btn-sm btn-secondary" onClick={markLost} disabled={saving}>Prehrané</button>
-      </div>
-      {f.status === 'prehrate' || (
-        <div className="form-grid" style={{ marginTop: 14 }}>
-          <label className="field span-2"><span>Dôvod prehry (pri Prehrané)</span>
-            <select value={f.lostReason} onChange={set('lostReason')}>
-              {LOST_REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-            </select>
-          </label>
-        </div>
-      )}
-    </Modal>
   )
 }
 
@@ -305,10 +205,10 @@ export default function Pipeline() {
       )}
 
       {editDeal && (
-        <DealEditModal
-          deal={editDeal}
+        <DealDetailModal
+          dealId={editDeal.id}
           onClose={() => setEditDeal(null)}
-          onSaved={() => { setEditDeal(null); load() }}
+          onUpdated={load}
         />
       )}
     </>

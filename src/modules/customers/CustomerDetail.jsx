@@ -7,6 +7,7 @@ import { useToast } from '../../components/Toast'
 import Modal from '../../components/Modal'
 import { fmtDate, fmtMoney } from '../../utils/format'
 import CustomerForm from './CustomerForm'
+import DealDetailModal from './DealDetailModal'
 import {
   ACTIVITY_TYPES, CRM_TASK_PRIORITIES, DEAL_PHASES, DEAL_SOURCES,
   customerDisplayName, customerStatusLabel, customerTypeLabel,
@@ -251,6 +252,7 @@ export default function CustomerDetail() {
   const [data, setData] = useState(null)
   const [editCustomer, setEditCustomer] = useState(false)
   const [modal, setModal] = useState(null)
+  const [viewDealId, setViewDealId] = useState(null)
 
   const load = async () => {
     setState({ loading: true, error: null })
@@ -338,6 +340,12 @@ export default function CustomerDetail() {
           <div><span className="muted">Email</span><div>{customer.email || '—'}</div></div>
           <div><span className="muted">Adresa</span><div>{[customer.address, customer.city].filter(Boolean).join(', ') || '—'}</div></div>
           <div><span className="muted">Obchodník</span><div>{customer.owner || '—'}</div></div>
+          {customer.driveFolderUrl && (
+            <div className="span-2">
+              <span className="muted">Drive</span>
+              <div><a href={customer.driveFolderUrl} target="_blank" rel="noreferrer">Priečinok zákazníka</a></div>
+            </div>
+          )}
           {customer.notes && (
             <div className="span-2"><span className="muted">Poznámky</span><div className="prewrap">{customer.notes}</div></div>
           )}
@@ -380,15 +388,15 @@ export default function CustomerDetail() {
             <thead><tr><th>ID</th><th>Názov</th><th>Fáza</th><th>Stav</th><th>Zdroj</th><th>Hodnota</th><th /></tr></thead>
             <tbody>
               {deals.map(d => (
-                <tr key={d.id}>
+                <tr key={d.id} className="table-click" onClick={() => setViewDealId(d.id)}>
                   <td className="project-id">{d.id}</td>
                   <td className="strong">{d.title}</td>
                   <td>{phaseLabel(d.phase)}</td>
                   <td>{dealStatusLabel(d.status)}</td>
                   <td>{sourceLabel(d.source)}</td>
                   <td className="num">{d.estimatedValue ? fmtMoney(d.estimatedValue) : '—'}</td>
-                  <td className="row-action">
-                    <button className="icon-btn" onClick={() => setModal({ type: 'deal', item: d })}>✎</button>
+                  <td className="row-action" onClick={e => e.stopPropagation()}>
+                    <button className="icon-btn" onClick={() => setViewDealId(d.id)}>✎</button>
                   </td>
                 </tr>
               ))}
@@ -518,12 +526,11 @@ export default function CustomerDetail() {
           onSaved={() => { setModal(null); load() }}
         />
       )}
-      {modal?.type === 'deal' && (
-        <DealModal
-          customerId={id}
-          deal={modal.item}
-          onClose={() => setModal(null)}
-          onSaved={() => { setModal(null); load() }}
+      {viewDealId && (
+        <DealDetailModal
+          dealId={viewDealId}
+          onClose={() => setViewDealId(null)}
+          onUpdated={load}
         />
       )}
     </>
