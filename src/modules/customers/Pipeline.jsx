@@ -4,7 +4,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import { fmtMoney, parseNum } from '../../utils/format'
-import { KANBAN_COLUMNS, STALE_DAYS } from './crmConstants'
+import { KANBAN_COLUMNS, STALE_DAYS, isDealOpen } from './crmConstants'
 import LostReasonModal from './LostReasonModal'
 import DealDetailModal from './DealDetailModal'
 
@@ -19,11 +19,12 @@ function columnKey(col) {
 }
 
 function DealCard({ deal, onDragStart, onClick }) {
+  const readOnly = deal.status === 'vyhrate'
   return (
     <div
-      className={'kanban-card' + (deal.stale ? ' kanban-card-stale' : '')}
-      draggable
-      onDragStart={e => onDragStart(e, deal.id)}
+      className={'kanban-card' + (deal.stale ? ' kanban-card-stale' : '') + (readOnly ? ' kanban-card-readonly' : '')}
+      draggable={!readOnly}
+      onDragStart={readOnly ? undefined : e => onDragStart(e, deal.id)}
       onClick={() => onClick(deal)}
     >
       <div className="kanban-card-title">{deal.title || deal.id}</div>
@@ -67,7 +68,7 @@ export default function Pipeline() {
   useEffect(() => { load() }, [load])
 
   const summary = useMemo(() => {
-    const open = deals.filter(d => d.status === 'otvoreny')
+    const open = deals.filter(d => isDealOpen(d))
     const total = open.reduce((s, d) => s + parseNum(d.estimatedValue), 0)
     const weighted = open.reduce((s, d) => s + parseNum(d.weightedValue), 0)
     return { open: open.length, total, weighted, stale: open.filter(d => d.stale).length }
@@ -121,6 +122,11 @@ export default function Pipeline() {
 
   const onDrop = (e, col) => {
     e.preventDefault()
+    if (col.kind === 'status' && col.value === 'vyhrate') {
+      toast('Stav „Vyhrané“ sa nastaví automaticky po odovzdaní projektu.', 'err')
+      setDragId(null)
+      return
+    }
     const dealId = dragId || e.dataTransfer.getData('text/plain')
     if (!dealId) return
     if (col.kind === 'status' && col.value === 'prehrate') {
@@ -163,19 +169,20 @@ export default function Pipeline() {
       </div>
 
       <p className="muted" style={{ marginBottom: 12 }}>
-        Ťahajte karty medzi stĺpcami. Kliknutím upravíte fázu alebo stav. Pri prehre vyplníte dôvod.
+        Ťahajte karty medzi stĺpcami fáz. Stĺpec „Vyhrané“ je len na prehľad — doplní sa po odovzdaní projektu. Pri prehre vyplníte dôvod.
       </p>
 
       <div className="kanban-board">
         {KANBAN_COLUMNS.map(col => {
           const items = byColumn.get(columnKey(col)) || []
           const isEnd = col.kind === 'status'
+          const isWonCol = isEnd && col.value === 'vyhrate'
           return (
             <div
               key={columnKey(col)}
-              className={'kanban-col' + (isEnd ? ' kanban-col-end kanban-col-' + col.value : '')}
-              onDragOver={e => e.preventDefault()}
-              onDrop={e => onDrop(e, col)}
+              className={'kanban-col' + (isEnd ? ' kanban-col-end kanban-col-' + col.value : '') + (isWonCol ? ' kanban-col-readonly' : '')}
+              onDragOver={e => { if (!isWonCol) e.preventDefault() }}
+              onDrop={isWonCol ? undefined : e => onDrop(e, col)}
             >
               <div className="kanban-col-head">
                 <span>{col.label}</span>

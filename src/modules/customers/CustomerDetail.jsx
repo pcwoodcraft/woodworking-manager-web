@@ -10,9 +10,10 @@ import CustomerForm from './CustomerForm'
 import DealDetailModal from './DealDetailModal'
 import {
   ACTIVITY_TYPES, CRM_TASK_PRIORITIES, DEAL_PHASES, DEAL_SOURCES,
-  customerDisplayName, customerStatusLabel, customerTypeLabel,
+  customerDisplayName, customerStatusLabel, customerTypeLabel, contactTypeLabel,
   dealStatusLabel, phaseLabel, sourceLabel,
 } from './crmConstants'
+import SalesOwnerSelect from './SalesOwnerSelect'
 
 function ContactModal({ customerId, contact, onClose, onSaved }) {
   const toast = useToast()
@@ -23,6 +24,7 @@ function ContactModal({ customerId, contact, onClose, onSaved }) {
     phone: contact?.phone || '',
     email: contact?.email || '',
     contactType: contact?.contactType || 'hlavny',
+    preferredContact: contact?.preferredContact || '',
     decisionRole: contact?.decisionRole || '',
     notes: contact?.notes || '',
   })
@@ -61,6 +63,9 @@ function ContactModal({ customerId, contact, onClose, onSaved }) {
         </label>
         <label className="field"><span>Telefón</span><input value={f.phone} onChange={set('phone')} /></label>
         <label className="field"><span>Email</span><input type="email" value={f.email} onChange={set('email')} /></label>
+        <label className="field span-2"><span>Preferovaný spôsob kontaktu</span>
+          <input value={f.preferredContact} onChange={set('preferredContact')} placeholder="telefón / email / osobne" />
+        </label>
         <label className="field span-2"><span>Rozhodovacia právomoc</span>
           <input value={f.decisionRole} onChange={set('decisionRole')} placeholder="rozhoduje / odporúča / vykonáva" />
         </label>
@@ -70,22 +75,40 @@ function ContactModal({ customerId, contact, onClose, onSaved }) {
   )
 }
 
-function ActivityModal({ customerId, deals, onClose, onSaved }) {
+function ActivityModal({ customerId, deals, contacts, initial, onClose, onSaved }) {
   const toast = useToast()
   const { me } = useAuth()
   const [saving, setSaving] = useState(false)
   const [f, setF] = useState({
-    type: 'hovor', subject: '', outcome: '', nextStep: '', dealId: '', contactName: '',
-    owner: me?.name || me?.email || '', notes: '',
+    type: initial?.type || 'hovor',
+    subject: initial?.subject || '',
+    outcome: initial?.outcome || '',
+    nextStep: initial?.nextStep || '',
+    followUpDate: initial?.followUpDate || '',
+    followUpPriority: initial?.followUpPriority || 'normalna',
+    dealId: initial?.dealId || '',
+    contactId: initial?.contactId || '',
+    contactName: initial?.contactName || '',
+    ownerEmail: me?.email || '',
+    notes: initial?.notes || '',
   })
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
+
+  const onContactChange = (contactId) => {
+    const c = contacts.find(x => String(x.id) === String(contactId))
+    setF({ ...f, contactId, contactName: c ? c.name : '' })
+  }
 
   const save = async () => {
     if (!f.type) { toast('Vyberte typ', 'err'); return }
     setSaving(true)
     try {
-      await apiCall('addActivity', { activity: { ...f, customerId, date: new Date().toISOString().slice(0, 10) } })
-      toast('Aktivita pridaná')
+      await apiCall('addActivity', {
+        activity: { ...f, customerId, date: new Date().toISOString().slice(0, 10) },
+        followUpDate: f.followUpDate || undefined,
+        followUpPriority: f.followUpPriority,
+      })
+      toast(f.followUpDate && f.nextStep.trim() ? 'Aktivita a follow-up úloha pridané' : 'Aktivita pridaná')
       onSaved()
     } catch (e) {
       toast(e.message, 'err')
@@ -112,9 +135,22 @@ function ActivityModal({ customerId, deals, onClose, onSaved }) {
           </select>
         </label>
         <label className="field span-2"><span>Téma</span><input value={f.subject} onChange={set('subject')} /></label>
-        <label className="field"><span>Kontaktná osoba</span><input value={f.contactName} onChange={set('contactName')} /></label>
+        <label className="field"><span>Kontaktná osoba</span>
+          <select value={f.contactId} onChange={e => onContactChange(e.target.value)}>
+            <option value="">—</option>
+            {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </label>
         <label className="field"><span>Výsledok</span><input value={f.outcome} onChange={set('outcome')} /></label>
         <label className="field span-2"><span>Ďalší krok</span><input value={f.nextStep} onChange={set('nextStep')} /></label>
+        <label className="field"><span>Termín follow-up</span>
+          <input type="date" value={f.followUpDate} onChange={set('followUpDate')} />
+        </label>
+        <label className="field"><span>Priorita úlohy</span>
+          <select value={f.followUpPriority} onChange={set('followUpPriority')}>
+            {CRM_TASK_PRIORITIES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+          </select>
+        </label>
         <label className="field span-2"><span>Poznámky</span><textarea rows={2} value={f.notes} onChange={set('notes')} /></label>
       </div>
     </Modal>
@@ -181,7 +217,7 @@ function DealModal({ customerId, deal, onClose, onSaved }) {
     source: deal?.source || 'telefon',
     estimatedValue: deal?.estimatedValue || '',
     probability: deal?.probability || '',
-    owner: deal?.owner || '',
+    ownerEmail: deal?.ownerEmail || '',
     clientDeadline: deal?.clientDeadline || '',
     nextActionDate: deal?.nextActionDate || '',
     notes: deal?.notes || '',
@@ -231,9 +267,11 @@ function DealModal({ customerId, deal, onClose, onSaved }) {
         <label className="field"><span>Stav</span>
           <select value={f.status} onChange={set('status')}>
             <option value="otvoreny">Otvorený</option>
-            <option value="vyhrate">Vyhraté</option>
             <option value="prehrate">Prehrané</option>
           </select>
+        </label>
+        <label className="field"><span>Obchodník</span>
+          <SalesOwnerSelect value={f.ownerEmail} onChange={v => setF({ ...f, ownerEmail: v })} />
         </label>
         <label className="field"><span>Hodnota (€)</span><input type="number" value={f.estimatedValue} onChange={set('estimatedValue')} /></label>
         <label className="field"><span>Pravdepodobnosť (%)</span><input type="number" value={f.probability} onChange={set('probability')} /></label>
@@ -268,9 +306,21 @@ export default function CustomerDetail() {
 
   const completeTask = async (taskId) => {
     try {
-      await apiCall('completeCrmTask', { id: taskId })
+      const res = await apiCall('completeCrmTask', { id: taskId })
       toast('Úloha dokončená')
       load()
+      if (res.task && window.confirm('Chcete zaznamenať novú aktivitu z tejto úlohy?')) {
+        setModal({
+          type: 'activity',
+          initial: {
+            type: res.task.type || 'hovor',
+            subject: res.task.title,
+            dealId: res.task.dealId || '',
+            notes: res.task.description || '',
+            nextStep: '',
+          },
+        })
+      }
     } catch (e) {
       toast(e.message, 'err')
     }
@@ -291,7 +341,9 @@ export default function CustomerDetail() {
   if (state.error) return <ErrorBox error={state.error} onRetry={load} />
   if (!data) return null
 
-  const { customer, contacts, deals, activities, crmTasks, projects, invoices, turnover } = data
+  const { customer, contacts, deals, activities, crmTasks, projects, invoices,
+    turnover, turnoverLastYear, openDealsCount, openDealsValue,
+    runningProjectsCount, runningProjectsValue, finishedProjectsCount } = data
   const name = customerDisplayName(customer)
 
   return (
@@ -314,16 +366,20 @@ export default function CustomerDetail() {
 
       <div className="stat-grid">
         <div className="stat-card">
-          <div className="stat-label">Obrat (uhradené faktúry)</div>
+          <div className="stat-label">Obrat tento rok</div>
           <div className="stat-value stat-value-sm">{fmtMoney(turnover)}</div>
+          <div className="muted" style={{ fontSize: '0.85em' }}>Minulý rok: {fmtMoney(turnoverLastYear)}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Otvorené dopyty</div>
-          <div className="stat-value stat-value-sm">{deals.filter(d => d.status === 'otvoreny').length}</div>
+          <div className="stat-value stat-value-sm">{openDealsCount}</div>
+          {openDealsValue > 0 && <div className="muted" style={{ fontSize: '0.85em' }}>{fmtMoney(openDealsValue)}</div>}
         </div>
         <div className="stat-card">
-          <div className="stat-label">Projekty</div>
-          <div className="stat-value stat-value-sm">{projects.length}</div>
+          <div className="stat-label">Bežiace projekty</div>
+          <div className="stat-value stat-value-sm">{runningProjectsCount}</div>
+          {runningProjectsValue > 0 && <div className="muted" style={{ fontSize: '0.85em' }}>{fmtMoney(runningProjectsValue)}</div>}
+          {finishedProjectsCount > 0 && <div className="muted" style={{ fontSize: '0.85em' }}>Ukončených: {finishedProjectsCount}</div>}
         </div>
         <div className="stat-card">
           <div className="stat-label">Posledný kontakt</div>
@@ -340,6 +396,16 @@ export default function CustomerDetail() {
           <div><span className="muted">Email</span><div>{customer.email || '—'}</div></div>
           <div><span className="muted">Adresa</span><div>{[customer.address, customer.city].filter(Boolean).join(', ') || '—'}</div></div>
           <div><span className="muted">Obchodník</span><div>{customer.owner || '—'}</div></div>
+          {(customer.billingName || customer.ico) && (
+            <>
+              <div className="span-2"><span className="muted">Fakturačný názov</span><div>{customer.billingName || '—'}</div></div>
+              <div><span className="muted">Právna forma</span><div>{customer.legalForm || '—'}</div></div>
+              <div><span className="muted">IČO</span><div>{customer.ico || '—'}</div></div>
+              <div><span className="muted">DIČ</span><div>{customer.dic || '—'}</div></div>
+              <div><span className="muted">IČ DPH</span><div>{customer.icDph || customer.vatId || '—'}</div></div>
+              <div><span className="muted">Splatnosť</span><div>{customer.paymentTermsDays ? customer.paymentTermsDays + ' dní' : '—'}</div></div>
+            </>
+          )}
           {customer.driveFolderUrl && (
             <div className="span-2">
               <span className="muted">Drive</span>
@@ -359,14 +425,17 @@ export default function CustomerDetail() {
         </div>
         {contacts.length === 0 ? <p className="muted">Žiadne kontakty.</p> : (
           <table className="table">
-            <thead><tr><th>Meno</th><th>Rola</th><th>Telefón</th><th>Email</th><th /></tr></thead>
+            <thead><tr><th>Meno</th><th>Typ</th><th>Rola</th><th>Telefón</th><th>Email</th><th>Preferovaný kontakt</th><th>Rozhoduje</th><th /></tr></thead>
             <tbody>
               {contacts.map(c => (
                 <tr key={c.id}>
                   <td className="strong">{c.name}</td>
+                  <td>{contactTypeLabel(c.contactType)}</td>
                   <td>{c.role || '—'}</td>
                   <td>{c.phone || '—'}</td>
                   <td>{c.email || '—'}</td>
+                  <td>{c.preferredContact || '—'}</td>
+                  <td>{c.decisionRole || '—'}</td>
                   <td className="row-action">
                     <button className="icon-btn" onClick={() => setModal({ type: 'contact', item: c })}>✎</button>{' '}
                     <button className="icon-btn" onClick={() => deleteContact(c.id)}>🗑</button>
@@ -435,14 +504,17 @@ export default function CustomerDetail() {
         </div>
         {crmTasks.length === 0 ? <p className="muted">Žiadne úlohy.</p> : (
           <table className="table">
-            <thead><tr><th>Termín</th><th>Názov</th><th>Priorita</th><th>Stav</th><th /></tr></thead>
+            <thead><tr><th>Termín</th><th>Názov</th><th>Typ</th><th>Priorita</th><th>Stav</th><th>Popis</th><th>Dopyt</th><th /></tr></thead>
             <tbody>
               {crmTasks.map(t => (
                 <tr key={t.id}>
                   <td>{fmtDate(t.dueDate)}</td>
                   <td>{t.title}</td>
+                  <td>{ACTIVITY_TYPES.find(x => x.value === t.type)?.label || t.type || '—'}</td>
                   <td>{CRM_TASK_PRIORITIES.find(p => p.value === t.priority)?.label || t.priority || '—'}</td>
                   <td>{t.status === 'hotova' ? 'Hotová' : 'Otvorená'}</td>
+                  <td>{t.description || '—'}</td>
+                  <td>{t.dealId ? (deals.find(d => d.id === t.dealId)?.title || t.dealId) : '—'}</td>
                   <td className="row-action">
                     {t.status !== 'hotova' && (
                       <button className="btn btn-sm btn-secondary" onClick={() => completeTask(t.id)}>Hotovo</button>
@@ -514,6 +586,8 @@ export default function CustomerDetail() {
         <ActivityModal
           customerId={id}
           deals={deals}
+          contacts={contacts}
+          initial={modal.initial}
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); load() }}
         />

@@ -10,6 +10,7 @@ import {
   DEAL_PHASES, LOST_REASONS, STALE_DAYS, sourceLabel,
   canConvertDealToProject, quoteStatusLabel, QUOTE_LINK_STATUSES,
 } from './crmConstants'
+import SalesOwnerSelect from './SalesOwnerSelect'
 
 export default function DealDetailModal({ dealId, onClose, onUpdated }) {
   const toast = useToast()
@@ -18,7 +19,7 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [data, setData] = useState(null)
-  const [phaseForm, setPhaseForm] = useState({ phase: 'novy_dopyt', lostReason: 'cena', lostReasonOther: '' })
+  const [phaseForm, setPhaseForm] = useState({ phase: 'novy_dopyt', lostReason: 'cena', lostReasonOther: '', ownerEmail: '' })
   const [quoteForm, setQuoteForm] = useState({ title: '', link: '', status: 'koncept' })
 
   const load = async () => {
@@ -30,6 +31,7 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
         phase: page.deal.phase || 'novy_dopyt',
         lostReason: page.deal.lostReason || 'cena',
         lostReasonOther: page.deal.lostReasonOther || '',
+        ownerEmail: page.deal.ownerEmail || '',
       })
     } catch (e) {
       toast(e.message, 'err')
@@ -60,11 +62,11 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
     }
   }
 
-  const markWon = async () => {
+  const saveOwner = async () => {
     setSaving(true)
     try {
-      await apiCall('moveDealPhase', { id: dealId, status: 'vyhrate', phase: phaseForm.phase })
-      toast('Dopyt označený ako vyhraný')
+      await apiCall('updateDeal', { deal: { id: dealId, ownerEmail: phaseForm.ownerEmail } })
+      toast('Obchodník uložený')
       await refresh()
     } catch (e) {
       toast(e.message, 'err')
@@ -92,7 +94,7 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
   }
 
   const convertToProject = async () => {
-    if (!window.confirm('Vytvoriť projekt v IS z tohto dopytu? Dopyt sa označí ako vyhraný a prepojí s projektom.')) return
+    if (!window.confirm('Vytvoriť projekt v IS z tohto dopytu? Dopyt ostane otvorený vo fáze „Vo výrobe“ a prepojí sa s projektom. Stav „Vyhrané“ sa nastaví až po odovzdaní projektu.')) return
     setSaving(true)
     try {
       const res = await apiCall('convertDealToProject', { dealId })
@@ -103,6 +105,47 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
       toast(e.message, 'err')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const uploadQuotePdf = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!quoteForm.title.trim()) {
+      toast('Najprv vyplňte názov ponuky', 'err')
+      e.target.value = ''
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast('Súbor je príliš veľký (max. 10 MB)', 'err')
+      e.target.value = ''
+      return
+    }
+    setSaving(true)
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result).split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      await apiCall('uploadQuotePdf', {
+        customerId: data.deal.customerId,
+        dealId,
+        title: quoteForm.title.trim(),
+        status: quoteForm.status,
+        fileName: file.name,
+        mimeType: file.type || 'application/pdf',
+        base64,
+      })
+      toast('Ponuka nahraná na Drive')
+      setQuoteForm({ title: '', link: '', status: 'koncept' })
+      await refresh()
+    } catch (err) {
+      toast(err.message, 'err')
+    } finally {
+      setSaving(false)
+      e.target.value = ''
     }
   }
 
@@ -167,6 +210,13 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
             {DEAL_PHASES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
         </label>
+        <label className="field"><span>Obchodník</span>
+          <SalesOwnerSelect
+            value={phaseForm.ownerEmail}
+            onChange={v => setPhaseForm({ ...phaseForm, ownerEmail: v })}
+            disabled={saving}
+          />
+        </label>
         <label className="field"><span>Zdroj</span>
           <input disabled value={sourceLabel(deal.source)} />
         </label>
@@ -180,8 +230,8 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
 
       <div className="btn-group" style={{ marginTop: 12, flexWrap: 'wrap' }}>
         <button className="btn btn-sm" onClick={movePhase} disabled={saving}>Uložiť fázu</button>
-        <button className="btn btn-sm btn-secondary" onClick={markWon} disabled={saving}>Vyhrané</button>
-        <button className="btn btn-sm btn-secondary" onClick={markLost} disabled={saving}>Prehrané</button>
+        <button className="btn btn-sm btn-secondary" onClick={saveOwner} disabled={saving}>Uložiť obchodníka</button>
+        <button className="btn btn-sm btn-secondary" onClick={markLost} disabled={saving || deal.status === 'prehrate'}>Prehrané</button>
         {showConvert && (
           <button className="btn btn-sm" onClick={convertToProject} disabled={saving}>Vytvoriť projekt</button>
         )}
@@ -235,7 +285,7 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
       )}
 
       <div className="card" style={{ marginTop: 20 }}>
-        <h3 style={{ marginBottom: 8 }}>Ponuky (odkaz)</h3>
+        <h3 style={{ marginBottom: 8 }}>Ponuky</h3>
         {quoteLinks.length === 0 ? <p className="muted">Žiadne ponuky.</p> : (
           <table className="table">
             <thead><tr><th>Názov</th><th>Stav</th><th>Odkaz</th><th /></tr></thead>
@@ -262,11 +312,14 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
               {QUOTE_LINK_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </label>
-          <label className="field span-2"><span>Odkaz (URL PDF / Drive)</span>
+          <label className="field span-2"><span>Odkaz (URL) — voliteľné</span>
             <input value={quoteForm.link} onChange={e => setQuoteForm({ ...quoteForm, link: e.target.value })} placeholder="https://..." />
           </label>
+          <label className="field span-2"><span>Nahrať PDF z disku</span>
+            <input type="file" accept=".pdf,application/pdf" onChange={uploadQuotePdf} disabled={saving} />
+          </label>
         </div>
-        <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={addQuote} disabled={saving}>+ Pridať ponuku</button>
+        <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={addQuote} disabled={saving || !quoteForm.link.trim()}>+ Pridať odkaz</button>
       </div>
 
       {(deal.clientDeadline || deal.nextActionDate) && (

@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { apiCall } from '../../api/client'
 import { Spinner, ErrorBox } from '../../components/ui'
 import { useToast } from '../../components/Toast'
-import { fmtDate } from '../../utils/format'
+import { fmtDate, fmtMoney } from '../../utils/format'
 import CustomerForm from './CustomerForm'
-import { customerDisplayName, customerStatusLabel, customerTypeLabel } from './crmConstants'
+import { customerStatusLabel, customerTypeLabel } from './crmConstants'
 
 export default function CustomersList() {
   const toast = useToast()
@@ -18,7 +18,8 @@ export default function CustomersList() {
   const load = async () => {
     setState({ loading: true, error: null })
     try {
-      setCustomers(await apiCall('getCustomers'))
+      const page = await apiCall('getCustomersListPage')
+      setCustomers(page.customers || [])
       setState({ loading: false, error: null })
     } catch (e) {
       setState({ loading: false, error: e })
@@ -27,8 +28,18 @@ export default function CustomersList() {
 
   useEffect(() => { load() }, [])
 
+  const openEdit = async (c, e) => {
+    e.stopPropagation()
+    try {
+      const detail = await apiCall('getCustomerDetail', { id: c.id })
+      setForm(detail.customer)
+    } catch (err) {
+      toast(err.message, 'err')
+    }
+  }
+
   const remove = async (c) => {
-    const name = customerDisplayName(c)
+    const name = c.displayName
     if (!window.confirm('Naozaj odstrániť zákazníka „' + name + '“?')) return
     try {
       await apiCall('deleteCustomer', { id: c.id })
@@ -44,7 +55,7 @@ export default function CustomersList() {
 
   const q = search.trim().toLowerCase()
   const visible = customers.filter(c =>
-    !q || [c.firstName, c.lastName, c.company, c.phone, c.email, c.address, c.city]
+    !q || [c.displayName, c.company, c.phone, c.notes, c.owner]
       .some(v => (v || '').toLowerCase().includes(q))
   )
 
@@ -68,21 +79,39 @@ export default function CustomersList() {
                 <th>Meno / firma</th>
                 <th>Typ</th>
                 <th>Stav</th>
-                <th>Telefón</th>
-                <th>Posledný kontakt</th>
+                <th>Rating</th>
+                <th>Najbližšia úloha</th>
+                <th>Obrat (rok)</th>
+                <th>Otv. dopyty</th>
+                <th>Poznámka</th>
                 <th />
               </tr>
             </thead>
             <tbody>
               {visible.map(c => (
                 <tr key={c.id} onClick={() => navigate('/zakaznici/' + c.id)}>
-                  <td className="strong">{customerDisplayName(c)}</td>
+                  <td className="strong">{c.displayName}</td>
                   <td>{customerTypeLabel(c.customerType)}</td>
                   <td>{customerStatusLabel(c.customerStatus)}</td>
-                  <td>{c.phone || '—'}</td>
-                  <td>{fmtDate(c.lastContact)}</td>
+                  <td>{c.rating || '—'}</td>
+                  <td>
+                    {c.nextTaskTitle ? (
+                      <>
+                        <span className={c.nextTaskOverdue ? 'budget-label-warn' : ''}>{fmtDate(c.nextTaskDate)}</span>
+                        {' — '}{c.nextTaskTitle}
+                      </>
+                    ) : '—'}
+                  </td>
+                  <td className="num">{fmtMoney(c.turnoverThisYear)}</td>
+                  <td className="num">
+                    {c.openDealsCount}
+                    {c.openDealsValue > 0 && <span className="muted"> ({fmtMoney(c.openDealsValue)})</span>}
+                  </td>
+                  <td className="muted" style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {c.notes || '—'}
+                  </td>
                   <td className="row-action" onClick={e => e.stopPropagation()}>
-                    <button className="icon-btn" title="Upraviť" onClick={() => setForm(c)}>✎</button>{' '}
+                    <button className="icon-btn" title="Upraviť" onClick={e => openEdit(c, e)}>✎</button>{' '}
                     <button className="icon-btn" title="Odstrániť" onClick={() => remove(c)}>🗑</button>
                   </td>
                 </tr>

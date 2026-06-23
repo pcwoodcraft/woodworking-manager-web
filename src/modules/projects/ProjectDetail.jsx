@@ -217,9 +217,16 @@ export default function ProjectDetail() {
   const closeAndReload = () => { setModal(null); reload() }
 
   const issueAdvance = async () => {
-    if (!window.confirm('Vystaviť zálohovú faktúru k tomuto projektu?')) return
+    const pct = window.prompt('Percento zálohy z ceny zákazky:', '50')
+    if (pct == null) return
+    const advancePercent = parseNum(pct)
+    if (!advancePercent || advancePercent <= 0 || advancePercent > 100) {
+      toast('Zadajte percento medzi 1 a 100', 'err')
+      return
+    }
+    if (!window.confirm('Vystaviť zálohovú faktúru (' + advancePercent + ' %)?')) return
     try {
-      const r = await apiCall('createProjectAdvanceInvoice', { projectId: project.id, language: invoiceLang })
+      const r = await apiCall('createProjectAdvanceInvoice', { projectId: project.id, language: invoiceLang, advancePercent })
       toast('Zálohová faktúra ' + (r.invoice?.number || '') + ' vystavená')
       reload()
     } catch (e) {

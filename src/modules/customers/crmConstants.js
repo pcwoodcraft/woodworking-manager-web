@@ -132,3 +132,18 @@ export function canConvertDealToProject(deal) {
   const curIdx = DEAL_PHASES.findIndex(p => p.value === deal.phase)
   return curIdx >= minIdx && minIdx >= 0
 }
+
+export function isDealOpen(deal) {
+  return deal && deal.status !== 'prehrate'
+}
+
+export const CONTACT_TYPES = [
+  { value: 'hlavny', label: 'Hlavný' },
+  { value: 'technicky', label: 'Technický' },
+  { value: 'fakturacny', label: 'Fakturačný' },
+  { value: 'ine', label: 'Iné' },
+]
+
+export function contactTypeLabel(code) {
+  return CONTACT_TYPES.find(t => t.value === code)?.label || code || '—'
+}

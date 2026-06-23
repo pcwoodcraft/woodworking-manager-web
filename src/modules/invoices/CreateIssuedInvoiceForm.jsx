@@ -44,6 +44,8 @@ export default function CreateIssuedInvoiceForm({
     deliveryDate: toIsoDate(new Date().toISOString()),
     notes: '',
     language: initialLanguage === 'en' ? 'en' : 'sk',
+    paymentDays: '',
+    advancePercent: '50',
     items: initialItems?.length ? initialItems : [emptyItem()],
   })
 
@@ -99,6 +101,12 @@ export default function CreateIssuedInvoiceForm({
     || (project?.customerId ? customers.find(c => c.id === project.customerId) : null)
   const reverseChargeHint = isForeignVatCustomer(selectedCustomer)
 
+  useEffect(() => {
+    if (selectedCustomer?.paymentTermsDays && !f.dueDate) {
+      setF(prev => ({ ...prev, paymentDays: String(selectedCustomer.paymentTermsDays) }))
+    }
+  }, [selectedCustomer?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const save = async () => {
     if (!f.customer.trim() && !f.customerId) {
       toast('Vyplňte zákazníka', 'err')
@@ -120,18 +128,31 @@ export default function CreateIssuedInvoiceForm({
     }
     setSaving(true)
     try {
-      const result = await apiCall('createIssuedInvoice', {
-        type: f.type,
-        projectId: f.projectId,
+      const common = {
+        projectId: f.projectId || project?.id,
         customerId: f.customerId,
         customer: f.customer.trim(),
         issueDate: f.issueDate,
         dueDate: f.dueDate || undefined,
+        paymentDays: f.paymentDays || undefined,
         deliveryDate: f.deliveryDate,
         notes: f.notes,
         language: f.language,
-        items,
-      })
+      }
+      let result
+      if ((project?.id || f.projectId) && f.type === 'zalohova') {
+        result = await apiCall('createProjectAdvanceInvoice', {
+          ...common,
+          projectId: project?.id || f.projectId,
+          advancePercent: parseNum(f.advancePercent) || undefined,
+        })
+      } else {
+        result = await apiCall('createIssuedInvoice', {
+          ...common,
+          type: f.type,
+          items,
+        })
+      }
       toast('Faktúra ' + (result.invoice?.number || '') + ' vystavená')
       onSaved(result)
     } catch (e) {
@@ -235,9 +256,20 @@ export default function CreateIssuedInvoiceForm({
             <input type="date" value={f.deliveryDate} onChange={set('deliveryDate')} />
           </label>
           <label className="field">
-            <span>Splatnosť</span>
+            <span>Splatnosť (dátum)</span>
             <input type="date" value={f.dueDate} onChange={set('dueDate')} placeholder="automaticky" />
           </label>
+          <label className="field">
+            <span>Splatnosť (dní)</span>
+            <input type="number" min="1" value={f.paymentDays} onChange={set('paymentDays')}
+              placeholder={selectedCustomer?.paymentTermsDays ? 'Zákazník: ' + selectedCustomer.paymentTermsDays : 'automaticky'} />
+          </label>
+          {f.type === 'zalohova' && (
+            <label className="field">
+              <span>Percento zálohy (%)</span>
+              <input type="number" min="1" max="100" value={f.advancePercent} onChange={set('advancePercent')} />
+            </label>
+          )}
           <label className="field span-2">
             <span>Poznámky</span>
             <textarea rows={2} value={f.notes} onChange={set('notes')} />

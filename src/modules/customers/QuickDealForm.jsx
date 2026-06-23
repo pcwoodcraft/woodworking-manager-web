@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import { DEAL_SOURCES, PRODUCT_TYPES, customerDisplayName } from './crmConstants'
+import SalesOwnerSelect from './SalesOwnerSelect'
 
 export default function QuickDealForm() {
   const toast = useToast()
@@ -21,7 +22,7 @@ export default function QuickDealForm() {
   })
   const [contact, setContact] = useState({ name: '', phone: '', email: '', role: '' })
   const [deal, setDeal] = useState({
-    title: '', productType: '', source: 'telefon', estimatedValue: '', notes: '', owner: me?.name || me?.email || '',
+    title: '', productType: '', source: 'telefon', estimatedValue: '', notes: '', ownerEmail: me?.email || '',
   })
 
   useEffect(() => {
@@ -32,8 +33,8 @@ export default function QuickDealForm() {
   }, [])
 
   useEffect(() => {
-    if (me && !deal.owner) setDeal(d => ({ ...d, owner: me.name || me.email || '' }))
-  }, [me, deal.owner])
+    if (me?.email && !deal.ownerEmail) setDeal(d => ({ ...d, ownerEmail: me.email }))
+  }, [me, deal.ownerEmail])
 
   const save = async () => {
     if (mode === 'existing' && !customerId) {
@@ -54,7 +55,7 @@ export default function QuickDealForm() {
           source: deal.source,
           estimatedValue: deal.estimatedValue,
           notes: deal.notes,
-          owner: deal.owner,
+          ownerEmail: deal.ownerEmail,
           phase: 'novy_dopyt',
           status: 'otvoreny',
         },
@@ -62,7 +63,7 @@ export default function QuickDealForm() {
       if (mode === 'existing') {
         payload.customerId = customerId
       } else {
-        payload.customer = { ...customer, owner: deal.owner, customerStatus: 'novy' }
+        payload.customer = { ...customer, ownerEmail: deal.ownerEmail, customerStatus: 'novy' }
       }
       if (contact.name.trim()) payload.contact = contact
       const res = await apiCall('addQuickDeal', payload)
@@ -82,7 +83,7 @@ export default function QuickDealForm() {
       <div className="card">
         <h2>Rýchly nový dopyt</h2>
         <p className="muted" style={{ marginBottom: 16 }}>
-          Zákazník + obchodný prípad v jednom kroku. Pipeline Kanban príde vo F4.1.
+          Zákazník + obchodný prípad v jednom kroku.
         </p>
 
         <div className="form-grid">
@@ -143,7 +144,7 @@ export default function QuickDealForm() {
             <input type="number" value={deal.estimatedValue} onChange={e => setDeal({ ...deal, estimatedValue: e.target.value })} />
           </label>
           <label className="field"><span>Obchodník</span>
-            <input value={deal.owner} onChange={e => setDeal({ ...deal, owner: e.target.value })} />
+            <SalesOwnerSelect value={deal.ownerEmail} onChange={v => setDeal({ ...deal, ownerEmail: v })} />
           </label>
           <label className="field span-2"><span>Poznámka</span>
             <textarea rows={2} value={deal.notes} onChange={e => setDeal({ ...deal, notes: e.target.value })} />
