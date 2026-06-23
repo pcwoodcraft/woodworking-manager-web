@@ -41,7 +41,7 @@ export default function CustomerForm({ customer, onClose, onSaved }) {
     setSaving(true)
     try {
       await apiCall(isEdit ? 'updateCustomer' : 'addCustomer', {
-        customer: { id: customer?.id || 'C' + Date.now(), ...f },
+        customer: { ...(isEdit ? { id: customer.id } : {}), ...f },
       })
       toast(isEdit ? 'Zákazník uložený' : 'Zákazník pridaný')
       onSaved()

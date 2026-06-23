@@ -17,7 +17,7 @@ function EmployeeForm({ employee, onClose, onSaved }) {
     setSaving(true)
     try {
       await apiCall(isEdit ? 'updateEmployee' : 'addEmployee', {
-        employee: { id: employee?.id || 'EMP' + Date.now(), name: f.name.trim(), initials: f.initials.trim().toUpperCase() },
+        employee: { ...(isEdit ? { id: employee.id } : {}), name: f.name.trim(), initials: f.initials.trim().toUpperCase() },
       })
       toast(isEdit ? 'Zamestnanec uložený' : 'Zamestnanec pridaný')
       onSaved()

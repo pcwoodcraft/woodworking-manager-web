@@ -103,7 +103,7 @@ function IssuedForm({ invoice, projects, onClose, onSaved }) {
     try {
       await apiCall(isEdit ? 'updateInvoice' : 'addInvoice', {
         invoice: {
-          id: invoice?.id || 'I' + Date.now(),
+          ...(isEdit ? { id: invoice.id } : {}),
           number: f.number.trim(),
           projectId: f.projectId,
           project: proj ? proj.name : (invoice?.project || ''),

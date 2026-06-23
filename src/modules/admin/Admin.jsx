@@ -7,6 +7,84 @@ import Modal from '../../components/Modal'
 import InvoiceSettingsPanel from './InvoiceSettingsPanel'
 import DiagnosticsPanel from './DiagnosticsPanel'
 
+function IdMigrationPanel() {
+  const toast = useToast()
+  const [preview, setPreview] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [running, setRunning] = useState(false)
+
+  const loadPreview = async () => {
+    setLoading(true)
+    try {
+      setPreview(await apiCall('previewMigrateAllIds'))
+      toast('Náhľad migrácie ID pripravený')
+    } catch (e) {
+      toast('Chyba: ' + e.message, 'err')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const runMigration = async () => {
+    if (!window.confirm('Spustiť migráciu všetkých ID v databáze a premenovanie priečinkov na Drive? Odporúčame najprv zálohu.')) return
+    setRunning(true)
+    try {
+      const result = await apiCall('migrateAllIds')
+      toast('Migrácia ID: ' + result.changeCount + ' zmien, Drive: ' + (result.driveChanges?.length || 0))
+      await loadPreview()
+    } catch (e) {
+      toast('Chyba: ' + e.message, 'err')
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <div className="card-head">
+        <div>
+          <h2 style={{ marginBottom: 4 }}>Migrácia ID (jednotný formát)</h2>
+          <p className="muted">Z2606-001, P2606-003, D2606-001, K2606-001, … — vrátane premenovania Drive priečinkov (ID + meno).</p>
+        </div>
+        <div className="btn-group">
+          <button className="btn btn-secondary" disabled={loading || running} onClick={loadPreview}>
+            {loading ? 'Načítava sa…' : 'Náhľad'}
+          </button>
+          <button className="btn" disabled={!preview || running} onClick={runMigration}>
+            {running ? 'Beží…' : 'Spustiť migráciu ID'}
+          </button>
+        </div>
+      </div>
+      {preview && (
+        <>
+          <p className="muted" style={{ marginBottom: 10 }}>
+            Záznamov na zmenu: <b>{preview.changeCount}</b>
+            {preview.bySheet && Object.keys(preview.bySheet).length > 0 && (
+              <> — {Object.entries(preview.bySheet).map(([k, v]) => k + ': ' + v).join(', ')}</>
+            )}
+          </p>
+          {preview.changes?.length > 0 && (
+            <table className="table">
+              <thead><tr><th>List</th><th>Staré ID</th><th>Nové ID</th><th>Pozn.</th></tr></thead>
+              <tbody>
+                {preview.changes.slice(0, 50).map((c, i) => (
+                  <tr key={i}>
+                    <td>{c.sheet}</td>
+                    <td className="project-id">{c.oldId}</td>
+                    <td className="project-id">{c.newId}</td>
+                    <td className="muted">{c.note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {preview.changes?.length > 50 && <p className="muted">… a ďalších {preview.changes.length - 50} zmien</p>}
+        </>
+      )}
+    </div>
+  )
+}
+
 function DriveMigrationPanel() {
   const toast = useToast()
   const [preview, setPreview] = useState(null)
@@ -284,6 +362,8 @@ export default function Admin() {
       </div>
 
       <DiagnosticsPanel />
+
+      <IdMigrationPanel />
 
       <DriveMigrationPanel />
 

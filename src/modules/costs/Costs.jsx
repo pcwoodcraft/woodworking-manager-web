@@ -35,7 +35,7 @@ function CostForm({ kind, cost, month, onClose, onSaved }) {
   const save = async () => {
     if (!f.name.trim() || f.amount === '') { toast('Vyplňte názov a sumu', 'err'); return }
     const base = {
-      id: cost?.id || cfg.prefix + Date.now(),
+      ...(isEdit ? { id: cost.id } : {}),
       name: f.name.trim(),
       amount: parseNum(f.amount),
       dueDay: f.dueDay,

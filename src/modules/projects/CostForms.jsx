@@ -24,7 +24,7 @@ export function MaterialForm({ project, item, onClose, onSaved }) {
     setSaving(true)
     try {
       const row = {
-        id: item?.id || ('MI' + Date.now()),
+        ...(editing ? { id: item.id } : {}),
         projectId: project.id,
         name: f.name.trim(),
         amount: parseNum(f.amount),
@@ -71,7 +71,6 @@ export function IncomingInvoiceForm({ project, onClose, onSaved }) {
     try {
       await apiCall('addIncomingInvoice', {
         invoice: {
-          id: 'II' + Date.now(),
           vendor: f.vendor.trim(),
           invoiceNumber: f.invoiceNumber.trim(),
           amountNet: f.amountNet === '' ? '' : parseNum(f.amountNet),
