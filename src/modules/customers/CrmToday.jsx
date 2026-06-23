@@ -7,6 +7,7 @@ import { useToast } from '../../components/Toast'
 import { fmtDate, fmtMoney } from '../../utils/format'
 import { phaseLabel } from './crmConstants'
 import CrmTaskModal from './CrmTaskModal'
+import DealDetailModal from './DealDetailModal'
 
 function Section({ title, empty, children }) {
   return (
@@ -39,20 +40,23 @@ function TaskTable({ rows, onEdit, onComplete }) {
   )
 }
 
-function DealTable({ rows, overdueField }) {
+function DealTable({ rows, overdueField, onOpen }) {
   return (
-    <table className="table">
-      <thead><tr><th>Termín</th><th>Dopyt</th><th>Zákazník</th><th>Fáza</th><th>Hodnota</th></tr></thead>
+    <table className="table table-click">
+      <thead><tr><th>Termín</th><th>Dopyt</th><th>Zákazník</th><th>Fáza</th><th>Hodnota</th><th /></tr></thead>
       <tbody>
         {rows.map(d => (
-          <tr key={d.id}>
+          <tr key={d.id} onClick={() => onOpen(d)}>
             <td className={overdueField && d[overdueField] && d._overdue ? 'overdue' : ''}>
               {fmtDate(overdueField ? d[overdueField] : d.nextActionDate)}
             </td>
             <td className="strong">{d.title}</td>
-            <td><Link to={'/zakaznici/' + d.customerId}>{d.customerName}</Link></td>
+            <td><Link to={'/zakaznici/' + d.customerId} onClick={e => e.stopPropagation()}>{d.customerName}</Link></td>
             <td>{phaseLabel(d.phase)}</td>
             <td className="num">{d.estimatedValue ? fmtMoney(d.estimatedValue) : '—'}</td>
+            <td className="row-action" onClick={e => e.stopPropagation()}>
+              <button className="icon-btn" title="Upraviť dopyt" onClick={() => onOpen(d)}>✎</button>
+            </td>
           </tr>
         ))}
       </tbody>
@@ -70,6 +74,7 @@ export default function CrmToday() {
   const [data, setData] = useState(null)
   const [editTask, setEditTask] = useState(null)
   const [editDeals, setEditDeals] = useState([])
+  const [viewDealId, setViewDealId] = useState(null)
 
   const load = useCallback(async () => {
     setState({ loading: true, error: null })
@@ -116,7 +121,7 @@ export default function CrmToday() {
   return (
     <>
       <div className="pipeline-toolbar">
-        <p className="muted">Prehľad na {fmtDate(data.date)} — úlohy, follow-upy a blížiace termíny. Kliknutím upravíte úlohu.</p>
+        <p className="muted">Prehľad na {fmtDate(data.date)} — kliknutím upravíte úlohu alebo otvoríte dopyt (follow-up).</p>
         {isAdmin && (
           <label className="switch-row pipeline-filter">
             <input type="checkbox" checked={mineOnly} onChange={e => setMineOnly(e.target.checked)} />
@@ -139,19 +144,19 @@ export default function CrmToday() {
 
       <Section title="Follow-up dnes" empty={!data.followUpsToday.length ? 'Dnes žiadne plánované follow-upy.' : null}>
         {data.followUpsToday.length > 0 && (
-          <DealTable rows={data.followUpsToday} overdueField="nextActionDate" />
+          <DealTable rows={data.followUpsToday} overdueField="nextActionDate" onOpen={d => setViewDealId(d.id)} />
         )}
       </Section>
 
       <Section title="Oneskorené follow-upy" empty={!followOverdue.length ? 'Žiadne oneskorené follow-upy.' : null}>
         {followOverdue.length > 0 && (
-          <DealTable rows={followOverdue} overdueField="nextActionDate" />
+          <DealTable rows={followOverdue} overdueField="nextActionDate" onOpen={d => setViewDealId(d.id)} />
         )}
       </Section>
 
       <Section title="Blížiace termíny (7 dní)" empty={!data.deadlinesSoon.length ? 'Žiadne blízke termíny klientov.' : null}>
         {data.deadlinesSoon.length > 0 && (
-          <DealTable rows={data.deadlinesSoon} overdueField="clientDeadline" />
+          <DealTable rows={data.deadlinesSoon} overdueField="clientDeadline" onOpen={d => setViewDealId(d.id)} />
         )}
       </Section>
 
@@ -162,6 +167,13 @@ export default function CrmToday() {
           task={editTask}
           onClose={() => setEditTask(null)}
           onSaved={() => { setEditTask(null); load() }}
+        />
+      )}
+      {viewDealId && (
+        <DealDetailModal
+          dealId={viewDealId}
+          onClose={() => setViewDealId(null)}
+          onUpdated={load}
         />
       )}
     </>
