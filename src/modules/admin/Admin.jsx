@@ -6,6 +6,7 @@ import { useToast } from '../../components/Toast'
 import Modal from '../../components/Modal'
 import InvoiceSettingsPanel from './InvoiceSettingsPanel'
 import DiagnosticsPanel from './DiagnosticsPanel'
+import FailedTimeEntriesPanel from './FailedTimeEntriesPanel'
 
 function MigrationVerifyPanel() {
   const toast = useToast()
@@ -449,6 +450,8 @@ export default function Admin() {
         <h2>Fakturácia</h2>
         <InvoiceSettingsPanel />
       </div>
+
+      <FailedTimeEntriesPanel />
 
       <DiagnosticsPanel />
 
