@@ -13,6 +13,10 @@ import CustomerDetail from './modules/customers/CustomerDetail'
 import QuickDealForm from './modules/customers/QuickDealForm'
 import Pipeline from './modules/customers/Pipeline'
 import CrmToday from './modules/customers/CrmToday'
+import QuotesList from './modules/quotes/QuotesList'
+import QuoteForm from './modules/quotes/QuoteForm'
+import QuoteDetail from './modules/quotes/QuoteDetail'
+import AtelierPage from './modules/atelier/AtelierPage'
 import Invoices from './modules/invoices/Invoices'
 import Costs from './modules/costs/Costs'
 import Employees from './modules/employees/Employees'
@@ -35,8 +39,12 @@ export default function App() {
             <Route path="novy-dopyt" element={<QuickDealForm />} />
             <Route path="pipeline" element={<Pipeline />} />
             <Route path="dnes" element={<CrmToday />} />
+            <Route path="ponuky" element={<QuotesList />} />
+            <Route path="ponuky/nova" element={<><header className="page-head"><h1>Nová cenová ponuka</h1></header><QuoteForm /></>} />
+            <Route path="ponuky/:id" element={<QuoteDetail />} />
             <Route path=":id" element={<CustomerDetail />} />
           </Route>
+          <Route path="atelier" element={<RequirePerm perm="perm_customers"><AtelierPage /></RequirePerm>} />
           <Route path="projekty" element={<RequirePerm perm="perm_projects_read"><Projects /></RequirePerm>} />
           <Route path="projekty/:id" element={<RequirePerm perm="perm_projects_read"><ProjectDetail /></RequirePerm>} />
           <Route path="dielna" element={<RequirePerm perm="perm_projects_read"><Workshop /></RequirePerm>} />

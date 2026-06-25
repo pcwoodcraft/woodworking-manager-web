@@ -42,6 +42,7 @@ export default function CustomerForm({ customer, onClose, onSaved }) {
     isVatPayer: customer?.isVatPayer === 'true' || customer?.isVatPayer === true,
     billingEmail: customer?.billingEmail || '',
     paymentTermsDays: customer?.paymentTermsDays || '',
+    fileLabel: customer?.fileLabel || '',
     internalNotes: customer?.internalNotes || '',
   })
   const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value })
@@ -113,6 +114,9 @@ export default function CustomerForm({ customer, onClose, onSaved }) {
       <div className="form-grid">
         <label className="field span-2"><span>Fakturačný názov</span>
           <input value={f.billingName} onChange={set('billingName')} placeholder="Ak sa líši od mena / firmy" />
+        </label>
+        <label className="field span-2"><span>Štítok do názvu PDF ponuky</span>
+          <input value={f.fileLabel} onChange={set('fileLabel')} placeholder="napr. Buryova — ak prázdne, odvodí sa z mena" />
         </label>
         <label className="field"><span>Právna forma</span>
           <input value={f.legalForm} onChange={set('legalForm')} placeholder="napr. s.r.o., živnosť" />

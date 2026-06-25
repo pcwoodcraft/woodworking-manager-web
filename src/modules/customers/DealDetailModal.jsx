@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { apiCall } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import { useToast } from '../../components/Toast'
@@ -14,6 +14,7 @@ import SalesOwnerSelect from './SalesOwnerSelect'
 
 export default function DealDetailModal({ dealId, onClose, onUpdated }) {
   const toast = useToast()
+  const navigate = useNavigate()
   const { can } = useAuth()
   const canWriteProject = can('perm_projects_write')
   const [loading, setLoading] = useState(true)
@@ -286,6 +287,15 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
 
       <div className="card" style={{ marginTop: 20 }}>
         <h3 style={{ marginBottom: 8 }}>Ponuky</h3>
+        <div className="btn-group" style={{ marginBottom: 12 }}>
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => navigate('/zakaznici/ponuky/nova?customerId=' + encodeURIComponent(deal.customerId) + '&leadId=' + encodeURIComponent(dealId))}
+          >
+            + Vytvoriť cenovú ponuku
+          </button>
+        </div>
         {quoteLinks.length === 0 ? <p className="muted">Žiadne ponuky.</p> : (
           <table className="table">
             <thead><tr><th>Názov</th><th>Stav</th><th>Odkaz</th><th /></tr></thead>
