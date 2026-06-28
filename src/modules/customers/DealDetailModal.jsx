@@ -20,7 +20,7 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [data, setData] = useState(null)
-  const [phaseForm, setPhaseForm] = useState({ phase: 'novy_dopyt', lostReason: 'cena', lostReasonOther: '', ownerEmail: '' })
+  const [phaseForm, setPhaseForm] = useState({ phase: 'novy_dopyt', lostReason: 'cena', lostReasonOther: '', ownerEmail: '', estimatedValue: '' })
   const [quoteForm, setQuoteForm] = useState({ title: '', link: '', status: 'koncept' })
 
   const load = async () => {
@@ -33,6 +33,7 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
         lostReason: page.deal.lostReason || 'cena',
         lostReasonOther: page.deal.lostReasonOther || '',
         ownerEmail: page.deal.ownerEmail || '',
+        estimatedValue: page.deal.estimatedValue ?? '',
       })
     } catch (e) {
       toast(e.message, 'err')
@@ -68,6 +69,19 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
     try {
       await apiCall('updateDeal', { deal: { id: dealId, ownerEmail: phaseForm.ownerEmail } })
       toast('Obchodník uložený')
+      await refresh()
+    } catch (e) {
+      toast(e.message, 'err')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveEstimatedValue = async () => {
+    setSaving(true)
+    try {
+      await apiCall('updateDeal', { deal: { id: dealId, estimatedValue: phaseForm.estimatedValue } })
+      toast('Hodnota uložená')
       await refresh()
     } catch (e) {
       toast(e.message, 'err')
@@ -221,8 +235,16 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
         <label className="field"><span>Zdroj</span>
           <input disabled value={sourceLabel(deal.source)} />
         </label>
-        <label className="field"><span>Hodnota</span>
-          <input disabled value={deal.estimatedValue ? fmtMoney(deal.estimatedValue) : '—'} />
+        <label className="field"><span>Hodnota (€)</span>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={phaseForm.estimatedValue}
+            onChange={e => setPhaseForm({ ...phaseForm, estimatedValue: e.target.value })}
+            disabled={saving}
+            placeholder="Odhadovaná suma"
+          />
         </label>
         <label className="field"><span>Vážená hodnota</span>
           <input disabled value={deal.weightedValue ? fmtMoney(deal.weightedValue) : '—'} />
@@ -232,6 +254,7 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
       <div className="btn-group" style={{ marginTop: 12, flexWrap: 'wrap' }}>
         <button className="btn btn-sm" onClick={movePhase} disabled={saving}>Uložiť fázu</button>
         <button className="btn btn-sm btn-secondary" onClick={saveOwner} disabled={saving}>Uložiť obchodníka</button>
+        <button className="btn btn-sm btn-secondary" onClick={saveEstimatedValue} disabled={saving}>Uložiť hodnotu</button>
         <button className="btn btn-sm btn-secondary" onClick={markLost} disabled={saving || deal.status === 'prehrate'}>Prehrané</button>
         {showConvert && (
           <button className="btn btn-sm" onClick={convertToProject} disabled={saving}>Vytvoriť projekt</button>
