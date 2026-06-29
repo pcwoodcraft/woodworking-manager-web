@@ -108,6 +108,17 @@ export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, o
   }, [quoteId, isEdit]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    if (isEdit) return
+    apiCall('getQuoteDefaults', { validityDays: f.validityDays })
+      .then(d => setF(prev => ({
+        ...prev,
+        termsBody: prev.termsBody || d.quoteTermsKratka || '',
+        paymentTerms: prev.paymentTerms || d.quotePaymentTermsDefault || '',
+      })))
+      .catch(() => {})
+  }, [isEdit]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
     if (!f.customerId || isEdit) return
     apiCall('suggestQuoteTaxMode', { customerId: f.customerId })
       .then(d => setF(prev => ({
@@ -309,8 +320,8 @@ export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, o
           </select>
         </label>
         <label className="field span-2">
-          <span>Text podmienok (strana 2)</span>
-          <textarea rows={4} value={f.termsBody} onChange={set('termsBody')} disabled={frozen} />
+          <span>Text podmienok (strana 2 PDF, ak vyplnené)</span>
+          <textarea rows={6} value={f.termsBody} onChange={set('termsBody')} disabled={frozen} />
           {!frozen && translateTargetLang(f.language) && (
             <button type="button" className="btn btn-sm btn-secondary" style={{ marginTop: 6 }} onClick={translateTerms}>
               Preložiť podmienky do {translateTargetLang(f.language)}
