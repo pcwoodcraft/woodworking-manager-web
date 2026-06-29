@@ -148,8 +148,13 @@ export const QUOTE_LINK_STATUSES = [
   { value: 'expirovala', label: 'Expirovala' },
 ]
 
-export function quoteStatusLabel(code) {
+export function quoteLinkStatusLabel(code) {
   return QUOTE_LINK_STATUSES.find(s => s.value === code)?.label || code || '—'
+}
+
+/** @deprecated use quoteLinkStatusLabel for legacy QuoteLinks */
+export function quoteStatusLabel(code) {
+  return quoteLinkStatusLabel(code)
 }
 
 const CONVERT_MIN_PHASE = 'objednavka_zaloha'

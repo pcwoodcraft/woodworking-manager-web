@@ -8,8 +8,9 @@ import { StatusBadge } from '../../components/ui'
 import { fmtDate, fmtMoney, fmtPercent } from '../../utils/format'
 import {
   DEAL_PHASES, LOST_REASONS, STALE_DAYS, sourceLabel,
-  canConvertDealToProject, quoteStatusLabel, QUOTE_LINK_STATUSES,
+  canConvertDealToProject, quoteLinkStatusLabel, QUOTE_LINK_STATUSES,
 } from './crmConstants'
+import { quoteStatusLabel } from '../quotes/quoteConstants'
 import SalesOwnerSelect from './SalesOwnerSelect'
 
 export default function DealDetailModal({ dealId, onClose, onUpdated }) {
@@ -207,8 +208,13 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
     )
   }
 
-  const { deal, quoteLinks, project, summary, invoices } = data
+  const { deal, quotes = [], quoteLinks, project, summary, invoices } = data
   const showConvert = canWriteProject && canConvertDealToProject(deal)
+
+  const quoteAmount = (q) => {
+    if (q.taxMode === 'REVERSE_CHARGE') return fmtMoney(q.totalNet)
+    return fmtMoney(q.totalGross || q.totalNet)
+  }
 
   return (
     <Modal title={deal.title || deal.id} onClose={onClose} wide
@@ -319,40 +325,90 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
             + Vytvoriť cenovú ponuku
           </button>
         </div>
-        {quoteLinks.length === 0 ? <p className="muted">Žiadne ponuky.</p> : (
+        {quotes.length === 0 ? (
+          <p className="muted">Zatiaľ žiadna ponuka v systéme.</p>
+        ) : (
           <table className="table">
-            <thead><tr><th>Názov</th><th>Stav</th><th>Odkaz</th><th /></tr></thead>
+            <thead>
+              <tr>
+                <th>CP číslo</th>
+                <th>Projekt</th>
+                <th>Stav</th>
+                <th className="num">Suma</th>
+                <th>PDF</th>
+                <th>Poznámka</th>
+              </tr>
+            </thead>
             <tbody>
-              {quoteLinks.map(q => (
-                <tr key={q.id}>
-                  <td>{q.title}</td>
+              {quotes.map(q => (
+                <tr
+                  key={q.id}
+                  className="clickable"
+                  onClick={() => navigate('/zakaznici/ponuky/' + q.id)}
+                >
+                  <td>
+                    <Link to={'/zakaznici/ponuky/' + q.id} onClick={e => e.stopPropagation()}>
+                      {q.quoteNumber || q.id}
+                    </Link>
+                  </td>
+                  <td>{q.projectName || '—'}</td>
                   <td>{quoteStatusLabel(q.status)}</td>
-                  <td><a href={q.link} target="_blank" rel="noreferrer">Otvoriť</a></td>
-                  <td className="row-action">
-                    <button className="icon-btn" onClick={() => deleteQuote(q.id)}>🗑</button>
+                  <td className="num">{quoteAmount(q)}</td>
+                  <td>
+                    {q.pdfUrl ? (
+                      <a href={q.pdfUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}>PDF</a>
+                    ) : '—'}
+                  </td>
+                  <td>
+                    {q.isExpired && <span className="kanban-stale-badge">Expirovaná</span>}
+                    {q.pdfStale && <span className="kanban-stale-badge" style={{ marginLeft: q.isExpired ? 6 : 0 }}>PDF neaktuálne</span>}
+                    {!q.isExpired && !q.pdfStale && '—'}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
-        <div className="form-grid" style={{ marginTop: 12 }}>
-          <label className="field"><span>Názov ponuky</span>
-            <input value={quoteForm.title} onChange={e => setQuoteForm({ ...quoteForm, title: e.target.value })} />
-          </label>
-          <label className="field"><span>Stav</span>
-            <select value={quoteForm.status} onChange={e => setQuoteForm({ ...quoteForm, status: e.target.value })}>
-              {QUOTE_LINK_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
-          </label>
-          <label className="field span-2"><span>Odkaz (URL) — voliteľné</span>
-            <input value={quoteForm.link} onChange={e => setQuoteForm({ ...quoteForm, link: e.target.value })} placeholder="https://..." />
-          </label>
-          <label className="field span-2"><span>Nahrať PDF z disku</span>
-            <input type="file" accept=".pdf,application/pdf" onChange={uploadQuotePdf} disabled={saving} />
-          </label>
-        </div>
-        <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={addQuote} disabled={saving || !quoteForm.link.trim()}>+ Pridať odkaz</button>
+
+        <details style={{ marginTop: 16 }}>
+          <summary className="muted" style={{ cursor: 'pointer' }}>Externé odkazy (staré)</summary>
+          {quoteLinks.length === 0 ? (
+            <p className="muted" style={{ marginTop: 8 }}>Žiadne externé odkazy.</p>
+          ) : (
+            <table className="table" style={{ marginTop: 8 }}>
+              <thead><tr><th>Názov</th><th>Stav</th><th>Odkaz</th><th /></tr></thead>
+              <tbody>
+                {quoteLinks.map(q => (
+                  <tr key={q.id}>
+                    <td>{q.title}</td>
+                    <td>{quoteLinkStatusLabel(q.status)}</td>
+                    <td><a href={q.link} target="_blank" rel="noreferrer">Otvoriť</a></td>
+                    <td className="row-action">
+                      <button className="icon-btn" onClick={() => deleteQuote(q.id)}>🗑</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <div className="form-grid" style={{ marginTop: 12 }}>
+            <label className="field"><span>Názov ponuky</span>
+              <input value={quoteForm.title} onChange={e => setQuoteForm({ ...quoteForm, title: e.target.value })} />
+            </label>
+            <label className="field"><span>Stav</span>
+              <select value={quoteForm.status} onChange={e => setQuoteForm({ ...quoteForm, status: e.target.value })}>
+                {QUOTE_LINK_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </label>
+            <label className="field span-2"><span>Odkaz (URL) — voliteľné</span>
+              <input value={quoteForm.link} onChange={e => setQuoteForm({ ...quoteForm, link: e.target.value })} placeholder="https://..." />
+            </label>
+            <label className="field span-2"><span>Nahrať PDF z disku</span>
+              <input type="file" accept=".pdf,application/pdf" onChange={uploadQuotePdf} disabled={saving} />
+            </label>
+          </div>
+          <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={addQuote} disabled={saving || !quoteForm.link.trim()}>+ Pridať odkaz</button>
+        </details>
       </div>
 
       {(deal.clientDeadline || deal.nextActionDate) && (
