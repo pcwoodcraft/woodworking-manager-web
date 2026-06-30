@@ -260,6 +260,7 @@ export default function CustomerDetail() {
           <div className="stat-label">Obrat tento rok</div>
           <div className="stat-value stat-value-sm">{fmtMoney(turnover)}</div>
           <div className="muted" style={{ fontSize: '0.85em' }}>Minulý rok: {fmtMoney(turnoverLastYear)}</div>
+          <div className="muted" style={{ fontSize: '0.78em', marginTop: 4 }}>Súčet uhradených vydaných faktúr podľa dátumu vystavenia</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Otvorené dopyty</div>
@@ -497,6 +498,14 @@ export default function CustomerDetail() {
         />
       )}
 
+      {modal?.type === 'deal' && (
+        <DealModal
+          customerId={id}
+          deal={modal.item}
+          onClose={() => setModal(null)}
+          onSaved={() => { setModal(null); load() }}
+        />
+      )}
       {modal?.type === 'contact' && (
         <ContactModal
           customerId={id}
