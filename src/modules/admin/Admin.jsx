@@ -8,262 +8,12 @@ import InvoiceSettingsPanel from './InvoiceSettingsPanel'
 import DiagnosticsPanel from './DiagnosticsPanel'
 import FailedTimeEntriesPanel from './FailedTimeEntriesPanel'
 
-function MigrationVerifyPanel() {
-  const toast = useToast()
-  const [state, setState] = useState({ loading: true, error: null, data: null })
-
-  const load = async () => {
-    setState({ loading: true, error: null, data: null })
-    try {
-      setState({ loading: false, error: null, data: await apiCall('verifyMigration') })
-    } catch (e) {
-      setState({ loading: false, error: e, data: null })
-      toast('Overenie zlyhalo: ' + e.message, 'err')
-    }
-  }
-
-  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (state.loading) return <div className="card" style={{ marginBottom: 20 }}><p className="muted">Overujem migráciu…</p></div>
-  if (state.error) return <div className="card" style={{ marginBottom: 20 }}><ErrorBox error={state.error} onRetry={load} /></div>
-
-  const v = state.data
-  return (
-    <div className="card" style={{ marginBottom: 20 }}>
-      <div className="card-head">
-        <div>
-          <h2 style={{ marginBottom: 4 }}>Kontrola migrácie</h2>
-          <p className="muted">
-            {v.ok
-              ? 'Všetko vyzerá v poriadku — ID, prepojenia aj Drive.'
-              : 'Nájdené problémy — pozri detail nižšie.'}
-          </p>
-        </div>
-        <button className="btn btn-secondary" onClick={load}>Obnoviť kontrolu</button>
-      </div>
-      <div className="stat-grid" style={{ marginBottom: 12 }}>
-        <div className="stat-card">
-          <div className="stat-label">Neštandardné ID</div>
-          <div className={'stat-value stat-value-sm' + (v.idIssues?.length ? ' budget-label-warn' : '')}>{v.idIssues?.length || 0}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Zlomené prepojenia</div>
-          <div className={'stat-value stat-value-sm' + (v.fkIssueCount ? ' budget-label-warn' : '')}>{v.fkIssueCount || 0}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Drive nesúlad</div>
-          <div className={'stat-value stat-value-sm' + (v.driveIssues?.length ? ' budget-label-warn' : '')}>{v.driveIssues?.length || 0}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Čaká migrácia</div>
-          <div className="stat-value stat-value-sm">ID {v.idPendingCount || 0} / Drive {v.drivePendingCount || 0}</div>
-        </div>
-      </div>
-      {v.idIssues?.length > 0 && (
-        <>
-          <h3>Neštandardné ID</h3>
-          <table className="table"><tbody>
-            {v.idIssues.map((x, i) => (
-              <tr key={i}><td>{x.sheet}</td><td className="project-id">{x.id}</td><td>{x.issue}</td></tr>
-            ))}
-          </tbody></table>
-        </>
-      )}
-      {v.fkIssues?.length > 0 && (
-        <>
-          <h3>Zlomené prepojenia (ukážka)</h3>
-          <table className="table"><tbody>
-            {v.fkIssues.map((x, i) => (
-              <tr key={i}><td>{x.sheet}/{x.rowId}</td><td>{x.column}={x.value}</td><td>→ chýba v {x.missingIn}</td></tr>
-            ))}
-          </tbody></table>
-        </>
-      )}
-      {v.driveIssues?.length > 0 && (
-        <>
-          <h3>Drive — názov priečinka</h3>
-          <table className="table"><tbody>
-            {v.driveIssues.map((x, i) => (
-              <tr key={i}>
-                <td>{x.type} {x.id}</td>
-                <td>{x.currentName || x.error}</td>
-                <td>{x.expectedName || '—'}</td>
-              </tr>
-            ))}
-          </tbody></table>
-        </>
-      )}
-    </div>
-  )
-}
-
-function IdMigrationPanel() {
-  const toast = useToast()
-  const [preview, setPreview] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [running, setRunning] = useState(false)
-
-  const loadPreview = async () => {
-    setLoading(true)
-    try {
-      setPreview(await apiCall('previewMigrateAllIds'))
-      toast('Náhľad migrácie ID pripravený')
-    } catch (e) {
-      toast('Chyba: ' + e.message, 'err')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const runMigration = async () => {
-    if (!window.confirm('Spustiť migráciu všetkých ID v databáze a premenovanie priečinkov na Drive? Odporúčame najprv zálohu.')) return
-    setRunning(true)
-    try {
-      const result = await apiCall('migrateAllIds')
-      toast('Migrácia ID: ' + result.changeCount + ' zmien, Drive: ' + (result.driveChanges?.length || 0))
-      await loadPreview()
-    } catch (e) {
-      toast('Chyba: ' + e.message, 'err')
-    } finally {
-      setRunning(false)
-    }
-  }
-
-  return (
-    <div className="card" style={{ marginBottom: 20 }}>
-      <div className="card-head">
-        <div>
-          <h2 style={{ marginBottom: 4 }}>Migrácia ID (jednotný formát)</h2>
-          <p className="muted">Z2606-001, P2606-003, D2606-001, K2606-001, … — vrátane premenovania Drive priečinkov (ID + meno).</p>
-        </div>
-        <div className="btn-group">
-          <button className="btn btn-secondary" disabled={loading || running} onClick={loadPreview}>
-            {loading ? 'Načítava sa…' : 'Náhľad'}
-          </button>
-          <button className="btn" disabled={!preview || running} onClick={runMigration}>
-            {running ? 'Beží…' : 'Spustiť migráciu ID'}
-          </button>
-        </div>
-      </div>
-      {preview && (
-        <>
-          <p className="muted" style={{ marginBottom: 10 }}>
-            Záznamov na zmenu: <b>{preview.changeCount}</b>
-            {preview.bySheet && Object.keys(preview.bySheet).length > 0 && (
-              <> — {Object.entries(preview.bySheet).map(([k, v]) => k + ': ' + v).join(', ')}</>
-            )}
-          </p>
-          {preview.changes?.length > 0 && (
-            <table className="table">
-              <thead><tr><th>List</th><th>Staré ID</th><th>Nové ID</th><th>Pozn.</th></tr></thead>
-              <tbody>
-                {preview.changes.slice(0, 50).map((c, i) => (
-                  <tr key={i}>
-                    <td>{c.sheet}</td>
-                    <td className="project-id">{c.oldId}</td>
-                    <td className="project-id">{c.newId}</td>
-                    <td className="muted">{c.note}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          {preview.changes?.length > 50 && <p className="muted">… a ďalších {preview.changes.length - 50} zmien</p>}
-        </>
-      )}
-    </div>
-  )
-}
-
-function DriveMigrationPanel() {
-  const toast = useToast()
-  const [preview, setPreview] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [running, setRunning] = useState(false)
-
-  const loadPreview = async () => {
-    setLoading(true)
-    try {
-      setPreview(await apiCall('previewMigrateDriveToCustomers'))
-      toast('Náhľad migrácie pripravený')
-    } catch (e) {
-      toast('Chyba: ' + e.message, 'err')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const runMigration = async () => {
-    if (!window.confirm('Spustiť migráciu priečinkov projektov pod Zákazníci/? Odporúčame najprv zálohu databázy.')) return
-    setRunning(true)
-    try {
-      const result = await apiCall('migrateDriveToCustomers')
-      const msg = 'Migrácia: ' + result.processed + ' projektov, chýb: ' + (result.errors?.length || 0)
-      toast(msg, result.errors?.length ? 'err' : undefined)
-      await loadPreview()
-    } catch (e) {
-      toast('Chyba: ' + e.message, 'err')
-    } finally {
-      setRunning(false)
-    }
-  }
-
-  const actionLabel = (a) => ({
-    ok: 'OK — už pod zákazníkom',
-    move: 'Presunúť',
-    create: 'Vytvoriť nový',
-    skip: 'Preskočiť',
-  }[a] || a)
-
-  return (
-    <div className="card" style={{ marginBottom: 20 }}>
-      <div className="card-head">
-        <div>
-          <h2 style={{ marginBottom: 4 }}>Migrácia Drive → Zákazníci</h2>
-          <p className="muted">Presun existujúcich projektov z Projekty/ROK/ do Zákazníci/…/05_Projekty/.</p>
-        </div>
-        <div className="btn-group">
-          <button className="btn btn-secondary" disabled={loading || running} onClick={loadPreview}>
-            {loading ? 'Načítava sa…' : 'Náhľad'}
-          </button>
-          <button className="btn" disabled={!preview || running} onClick={runMigration}>
-            {running ? 'Beží…' : 'Spustiť migráciu'}
-          </button>
-        </div>
-      </div>
-      {preview && (
-        <>
-          <p className="muted" style={{ marginBottom: 10 }}>
-            Celkom {preview.total} projektov — presun: {preview.counts.move}, nové: {preview.counts.create},
-            OK: {preview.counts.ok}, preskočené: {preview.counts.skip}
-          </p>
-          <table className="table">
-            <thead>
-              <tr><th>Projekt</th><th>Zákazník</th><th>Akcia</th><th>Poznámka</th></tr>
-            </thead>
-            <tbody>
-              {preview.items.map(item => (
-                <tr key={item.projectId}>
-                  <td><span className="project-id">{item.projectId}</span> {item.projectName}</td>
-                  <td>{item.customerName || '—'}</td>
-                  <td>{actionLabel(item.action)}</td>
-                  <td className="muted">{item.oldPath ? item.oldPath + ' → ' : ''}{item.newPath || item.note}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
-    </div>
-  )
-}
-
 const PERM_LABELS = {
   perm_customers: 'Zákazníci (CRM)',
   perm_projects_read: 'Projekty — zobrazenie',
   perm_projects_write: 'Projekty — úprava a zmena stavu',
   perm_invoices_full: 'Faktúry — celkový prehľad a správa',
-  perm_invoices_add: 'Faktúry — pridanie k projektu',
+  perm_invoices_add: 'Faktúry — vystavenie a úhrady k projektu',
   perm_costs_full: 'Náklady — celkový prehľad',
   perm_costs_add: 'Náklady — pridanie k projektu',
   perm_employees: 'Zamestnanci a mzdové údaje',
@@ -418,7 +168,12 @@ export default function Admin() {
         <button className="btn" onClick={() => setModal('new')}>+ Nový používateľ</button>
       </header>
 
+      <p className="muted" style={{ marginBottom: 20 }}>
+        Správa prístupov, firemné údaje na faktúrach, záloha tabuľky a prehľad problémov z dielne.
+      </p>
+
       <div className="card" style={{ marginBottom: 20 }}>
+        <div className="card-head"><h2>Používatelia a práva</h2></div>
         <table className="table table-click">
           <thead>
             <tr><th>Meno</th><th>Email</th><th>Rola</th><th>Stav</th><th>Práva</th></tr>
@@ -447,7 +202,7 @@ export default function Admin() {
       </div>
 
       <div className="card" style={{ marginBottom: 20 }}>
-        <h2>Fakturácia</h2>
+        <h2>Fakturácia — firemné údaje</h2>
         <InvoiceSettingsPanel />
       </div>
 
@@ -455,16 +210,10 @@ export default function Admin() {
 
       <DiagnosticsPanel />
 
-      <IdMigrationPanel />
-
-      <MigrationVerifyPanel />
-
-      <DriveMigrationPanel />
-
       <div className="card admin-backup">
         <div>
           <h2 style={{ marginBottom: 4 }}>Záloha databázy</h2>
-          <p className="muted">Kópia tabuľky na Google Drive s dátumom v názve.</p>
+          <p className="muted">Kópia tabuľky na Google Drive s dátumom v názve. Pred väčšími zmenami v dátach odporúčame vytvoriť zálohu.</p>
           {lastBackup?.url && (
             <p className="muted" style={{ marginTop: 8 }}>
               <a href={lastBackup.url} target="_blank" rel="noreferrer">Posledná záloha: {lastBackup.name}</a>

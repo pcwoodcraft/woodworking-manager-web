@@ -1,6 +1,6 @@
 # PCW Manager (woodworking-manager-web)
 
-React frontend pre interný systém stolárstva — zákazníci, projekty, faktúry, náklady, zamestnanci, dashboard.
+React frontend pre interný systém stolárstva — zákazníci, CRM, projekty, faktúry a úhrady, náklady, zamestnanci, dashboard.
 
 **Ostrá adresa:** https://pcwoodcraft.github.io/woodworking-manager-web/
 
@@ -41,6 +41,15 @@ src/
   api/          API klient (token, retry, chyby)
   auth/         prihlásenie, práva, RequirePerm
   components/   Layout, Modal, Toast, UI
-  modules/      dashboard, customers, projects, invoices, costs, employees, admin
+  modules/      dashboard, customers (CRM), projects, invoices, costs, employees, admin
   utils/        formátovanie dátumov a súm (SK)
 ```
+
+## Hlavné moduly
+
+| Modul | Čo robí |
+|---|---|
+| Zákazníci / CRM | pipeline dopytov, ponuky, reklamácie, obrat z úhrad |
+| Projekty | stavy, náklady, faktúry, **úhrady od zákazníka**, odovzdanie |
+| Faktúry | prijaté + vydané; u vydaných **+ Úhrada** / Uhradiť zvyšok |
+| Administrácia | používatelia, firemné údaje faktúr, záloha DB, dielenské chyby |
