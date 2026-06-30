@@ -260,7 +260,7 @@ export default function CustomerDetail() {
           <div className="stat-label">Obrat tento rok</div>
           <div className="stat-value stat-value-sm">{fmtMoney(turnover)}</div>
           <div className="muted" style={{ fontSize: '0.85em' }}>Minulý rok: {fmtMoney(turnoverLastYear)}</div>
-          <div className="muted" style={{ fontSize: '0.78em', marginTop: 4 }}>Súčet uhradených vydaných faktúr podľa dátumu vystavenia</div>
+          <div className="muted" style={{ fontSize: '0.78em', marginTop: 4 }}>Súčet prijatých úhrad podľa dátumu platby (bez DPH)</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Otvorené dopyty</div>

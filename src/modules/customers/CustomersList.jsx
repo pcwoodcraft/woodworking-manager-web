@@ -81,7 +81,7 @@ export default function CustomersList() {
                 <th>Stav</th>
                 <th>Rating</th>
                 <th>Najbližšia úloha</th>
-                <th>Obrat (rok)</th>
+                <th>Obrat (rok)<span className="muted" style={{ fontWeight: 'normal', display: 'block', fontSize: '0.75em' }}>úhrady zákazníka</span></th>
                 <th>Otv. dopyty</th>
                 <th>Poznámka</th>
                 <th />

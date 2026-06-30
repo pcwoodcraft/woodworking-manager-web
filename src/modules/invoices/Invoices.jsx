@@ -5,6 +5,8 @@ import { useToast } from '../../components/Toast'
 import Modal from '../../components/Modal'
 import { fmtMoney, fmtDate, parseNum, toIsoDate, invoiceMonth, fmtMonth } from '../../utils/format'
 import CreateIssuedInvoiceForm, { TYPE_LABELS } from './CreateIssuedInvoiceForm'
+import InvoicePaymentModal from './InvoicePaymentModal'
+import { useAuth } from '../../auth/AuthContext'
 
 function displayInvoiceNumber(inv) {
   const n = inv.number || ''
@@ -14,6 +16,12 @@ function displayInvoiceNumber(inv) {
 
 function hasOstraForAdvance(invoices, advanceId) {
   return invoices.some(i => i.type === 'ostra' && String(i.relatedInvoiceId) === String(advanceId))
+}
+
+function invoiceStatusPillClass(status) {
+  if (status === 'Uhradená') return 'pill-ok'
+  if (status === 'Ciastočne uhradená') return 'pill-warn'
+  return 'pill-warn'
 }
 
 // Faktúry: Prijaté (predvolená záložka, filter mesiac/stav/dodávateľ) + Vydané.
@@ -142,9 +150,10 @@ function IssuedForm({ invoice, projects, onClose, onSaved }) {
         <label className="field"><span>Vystavená</span><input type="date" value={f.issueDate} onChange={set('issueDate')} /></label>
         <label className="field"><span>Splatnosť</span><input type="date" value={f.dueDate} onChange={set('dueDate')} /></label>
         <label className="field"><span>Stav</span>
-          <select value={f.status} onChange={set('status')}>
-            <option>Neuhradená</option><option>Uhradená</option>
+          <select value={f.status} onChange={set('status')} disabled={isEdit}>
+            <option>Neuhradená</option><option>Uhradená</option><option>Ciastočne uhradená</option>
           </select>
+          {isEdit && <span className="muted" style={{ fontSize: '0.85em' }}>Stav sa odvodzuje z úhrad — pri úprave sa neprepína.</span>}
         </label>
         <label className="field span-2"><span>Poznámky</span><textarea rows={2} value={f.notes} onChange={set('notes')} /></label>
       </div>
@@ -154,6 +163,8 @@ function IssuedForm({ invoice, projects, onClose, onSaved }) {
 
 export default function Invoices() {
   const toast = useToast()
+  const { can } = useAuth()
+  const canInvoicesAdd = can('perm_invoices_add')
   const [state, setState] = useState({ loading: true, error: null })
   const [data, setData] = useState({ incoming: [], invoices: [], projects: [], customers: [] })
   const [tab, setTab] = useState('prijate')
@@ -192,14 +203,17 @@ export default function Invoices() {
   const issued = [...data.invoices]
     .sort((a, b) => (toIsoDate(b.issueDate) || '').localeCompare(toIsoDate(a.issueDate) || ''))
 
-  const toggleIssuedPaid = async (inv) => {
-    const next = inv.status === 'Uhradená' ? 'Neuhradená' : 'Uhradená'
+  const payInvoiceRemaining = async (inv) => {
     try {
-      await apiCall('updateInvoice', { invoice: { id: inv.id, status: next } })
-      toast(next === 'Uhradená' ? 'Označená ako uhradená' : 'Označená ako neuhradená')
+      await apiCall('addInvoicePayment', {
+        invoiceId: inv.id,
+        paidDate: toIsoDate(new Date().toISOString()),
+      })
+      toast('Zvyšok faktúry uhradený')
       load()
     } catch (e) {
-      toast('Nepodarilo sa uložiť: ' + e.message, 'err')
+      if (e.message && e.message.indexOf('uhradená') >= 0) toast('Faktúra je uhradená')
+      else toast('Nepodarilo sa uložiť: ' + e.message, 'err')
     }
   }
 
@@ -299,7 +313,11 @@ export default function Invoices() {
                 <tr><th>Číslo</th><th>Typ</th><th>Projekt</th><th>Zákazník</th><th>Vystavená</th><th>Stav</th><th className="num">Suma</th><th /></tr>
               </thead>
               <tbody>
-                {issued.map(i => (
+                {issued.map(i => {
+                  const st = i.status || 'Neuhradená'
+                  const isOstra = i.type === 'ostra'
+                  const advance = isOstra ? data.invoices.find(a => String(a.id) === String(i.relatedInvoiceId)) : null
+                  return (
                   <tr key={i.id}>
                     <td className="strong">
                       {i.driveLink
@@ -311,22 +329,28 @@ export default function Invoices() {
                     <td>{i.customer}</td>
                     <td>{fmtDate(i.issueDate)}</td>
                     <td>
-                      <button
-                        className={'pill ' + (i.status === 'Uhradená' ? 'pill-ok' : 'pill-warn')}
-                        title="Kliknutím prepnete stav"
-                        onClick={() => toggleIssuedPaid(i)}
-                      >{i.status || 'Neuhradená'}</button>
+                      <span className={'pill ' + invoiceStatusPillClass(st)} title={isOstra && advance ? 'Zrkadlí stav zálohy ' + advance.number : ''}>
+                        {st}{isOstra && advance ? ' (záloha)' : ''}
+                      </span>
                     </td>
                     <td className="num">{fmtMoney(i.amountGross || i.amount)}</td>
                     <td className="row-action">
-                      {i.type === 'zalohova' && i.status === 'Uhradená' && !hasOstraForAdvance(data.invoices, i.id) && (
+                      {!isOstra && canInvoicesAdd && st !== 'Uhradená' && (
+                        <>
+                          <button className="btn btn-sm btn-secondary" style={{ marginRight: 4 }}
+                            onClick={() => setModal({ type: 'invoicePayment', inv: i })}>+ Úhrada</button>
+                          <button className="btn btn-sm" style={{ marginRight: 6 }}
+                            onClick={() => payInvoiceRemaining(i)}>Uhradiť zvyšok</button>
+                        </>
+                      )}
+                      {i.type === 'zalohova' && st === 'Uhradená' && !hasOstraForAdvance(data.invoices, i.id) && (
                         <button className="btn btn-sm btn-secondary" style={{ marginRight: 6 }}
                           onClick={() => createOstra(i)}>Ostrá faktúra</button>
                       )}
                       <button className="icon-btn" title="Upraviť" onClick={() => setModal({ type: 'issued', inv: i })}>✎</button>
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           )}
@@ -346,6 +370,13 @@ export default function Invoices() {
       )}
       {modal?.type === 'issued' && (
         <IssuedForm invoice={modal.inv} projects={data.projects} onClose={() => setModal(null)} onSaved={() => { setModal(null); load() }} />
+      )}
+      {modal?.type === 'invoicePayment' && (
+        <InvoicePaymentModal
+          invoice={modal.inv}
+          onClose={() => setModal(null)}
+          onSaved={() => { setModal(null); load() }}
+        />
       )}
     </div>
   )

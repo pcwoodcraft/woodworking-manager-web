@@ -5,9 +5,11 @@ import { cacheGet, cacheSet, invalidateProjectCaches } from '../../api/cache'
 import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox, StatusBadge } from '../../components/ui'
 import { useToast } from '../../components/Toast'
+import Modal from '../../components/Modal'
 import ProjectForm from './ProjectForm'
 import { MaterialForm, IncomingInvoiceForm, AssignInvoiceModal } from './CostForms'
 import CreateIssuedInvoiceForm, { TYPE_LABELS } from '../invoices/CreateIssuedInvoiceForm'
+import InvoicePaymentModal from '../invoices/InvoicePaymentModal'
 
 function displayInvoiceNumber(inv) {
   const n = inv.number || ''
@@ -28,6 +30,106 @@ import {
 
 const CONFIRM_STATUSES = {
   zruseny: 'Naozaj označiť projekt ako zrušený?',
+}
+
+const PAYMENT_KIND_LABELS = { zaloha: 'Záloha', doplatok: 'Doplatok', faza: 'Fáza', ina: 'Iná' }
+
+function invoiceStatusPillClass(status) {
+  if (status === 'Uhradená') return 'pill-ok'
+  if (status === 'Ciastočne uhradená') return 'pill-warn'
+  return 'pill-warn'
+}
+
+function DeliveryConfirmModal({ remainingNet, openInvoices, onClose, onConfirm, saving }) {
+  const [paidDate, setPaidDate] = useState(toIsoDate(new Date().toISOString()))
+  const [invoiceId, setInvoiceId] = useState(openInvoices[0]?.id || '')
+  return (
+    <Modal
+      title="Odovzdanie projektu — zostáva uhradiť"
+      onClose={onClose}
+      footer={<button className="btn btn-secondary" onClick={onClose}>Zrušiť</button>}
+    >
+      <p>Zostáva uhradiť <b>{fmtMoney(remainingNet)}</b> (bez DPH). Ako chcete pokračovať?</p>
+      {openInvoices.length > 0 && (
+        <div className="form-grid" style={{ marginBottom: 12 }}>
+          {openInvoices.length > 1 && (
+            <label className="field span-2">
+              <span>Doplatok priradiť k faktúre</span>
+              <select value={invoiceId} onChange={e => setInvoiceId(e.target.value)}>
+                {openInvoices.map(inv => (
+                  <option key={inv.id} value={inv.id}>{inv.number} — zostáva {fmtMoney(inv.remainingNet)}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          {openInvoices.length === 1 && (
+            <p className="muted">Doplatok sa priradí k faktúre <b>{openInvoices[0].number}</b>.</p>
+          )}
+          <label className="field">
+            <span>Dátum úhrady</span>
+            <input type="date" value={paidDate} max={toIsoDate(new Date().toISOString())} onChange={e => setPaidDate(e.target.value)} />
+          </label>
+        </div>
+      )}
+      <div className="btn-group" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+        <button className="btn" disabled={saving} onClick={() => onConfirm('pay', { paidDate, invoiceId: openInvoices.length ? invoiceId : '' })}>
+          Odovzdať a zaznamenať úhradu zvyšku
+        </button>
+        <button className="btn btn-secondary" disabled={saving} onClick={() => {
+          if (window.confirm('Projekt bude odovzdaný bez zaznamenania úhrady. Dopyt sa uzavrie ako vyhraný; obrat sa zvýši až po zaznamenaní platby. Pokračovať?')) {
+            onConfirm('without')
+          }
+        }}>
+          Odovzdať aj bez úhrady (zvyšok zostáva otvorený)
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+function ProjectManualPaymentModal({ project, onClose, onSaved }) {
+  const toast = useToast()
+  const [amount, setAmount] = useState('')
+  const [paidDate, setPaidDate] = useState(toIsoDate(new Date().toISOString()))
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const save = async () => {
+    const amt = parseNum(amount)
+    if (!amt) { toast('Zadajte sumu', 'err'); return }
+    setSaving(true)
+    try {
+      await apiCall('addProjectPayment', {
+        payment: { projectId: project.id, amountNet: amt, paidDate, notes },
+      })
+      toast('Úhrada zaznamenaná')
+      onSaved()
+    } catch (e) {
+      toast(e.message, 'err')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal title="Ručná úhrada k projektu" onClose={onClose}
+      footer={<>
+        <button className="btn btn-secondary" onClick={onClose}>Zrušiť</button>
+        <button className="btn" onClick={save} disabled={saving}>{saving ? 'Ukladá sa…' : 'Uložiť'}</button>
+      </>}
+    >
+      <div className="form-grid">
+        <label className="field"><span>Suma bez DPH (€)</span>
+          <input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} />
+        </label>
+        <label className="field"><span>Dátum platby</span>
+          <input type="date" value={paidDate} max={toIsoDate(new Date().toISOString())} onChange={e => setPaidDate(e.target.value)} />
+        </label>
+        <label className="field span-2"><span>Poznámka</span>
+          <input value={notes} onChange={e => setNotes(e.target.value)} />
+        </label>
+      </div>
+    </Modal>
+  )
 }
 
 const fmtH = (h) => h.toLocaleString('sk-SK', { maximumFractionDigits: 1 })
@@ -123,6 +225,9 @@ export default function ProjectDetail() {
   const [savingStatus, setSavingStatus] = useState(false)
   const [openWorkers, setOpenWorkers] = useState({})
   const [invoiceLang, setInvoiceLang] = useState('sk')
+  const [paymentSummary, setPaymentSummary] = useState(null)
+  const [payments, setPayments] = useState([])
+  const [deliveryModal, setDeliveryModal] = useState(null)
 
   const applyPage = (page) => {
     setData({
@@ -134,6 +239,8 @@ export default function ProjectDetail() {
       material: page.material,
     })
     setSummary(page.summary)
+    setPaymentSummary(page.paymentSummary || null)
+    setPayments(page.payments || [])
   }
 
   const load = async () => {
@@ -189,15 +296,41 @@ export default function ProjectDetail() {
       e.target.value = normalizeStatus(project.status)
       return
     }
+    if (status === 'odovzdany' && paymentSummary && paymentSummary.remainingNet > 0.01) {
+      e.target.value = normalizeStatus(project.status)
+      setDeliveryModal({
+        remainingNet: paymentSummary.remainingNet,
+        openInvoices: paymentSummary.openInvoices || [],
+      })
+      return
+    }
+    await doUpdateStatus(status)
+  }
+
+  const doUpdateStatus = async (status, opts) => {
     setSavingStatus(true)
     try {
-      await apiCall('updateProjectStatus', { id: project.id, status })
+      const payload = { id: project.id, status, ...(opts || {}) }
+      await apiCall('updateProjectStatus', payload)
       toast('Stav zmenený na „' + statusLabel(status) + '“')
+      setDeliveryModal(null)
       await reload()
     } catch (err) {
       toast('Nepodarilo sa zmeniť stav: ' + err.message, 'err')
     } finally {
       setSavingStatus(false)
+    }
+  }
+
+  const confirmDelivery = (mode, extra) => {
+    if (mode === 'pay') {
+      doUpdateStatus('odovzdany', {
+        recordRemainingOnDelivery: true,
+        paidDate: extra.paidDate,
+        invoiceId: extra.invoiceId || undefined,
+      })
+    } else if (mode === 'without') {
+      doUpdateStatus('odovzdany', { deliverWithoutFullPayment: true })
     }
   }
 
@@ -260,17 +393,37 @@ export default function ProjectDetail() {
     }
   }
 
-  const toggleIssuedPaid = async (inv) => {
-    const next = inv.status === 'Uhradená' ? 'Neuhradená' : 'Uhradená'
+  const payInvoiceRemaining = async (inv) => {
+    const rem = parseNum(inv.remainingNet)
+    if (rem <= 0.01) {
+      toast('Faktúra je uhradená')
+      return
+    }
     try {
-      await apiCall('updateInvoice', { invoice: { id: inv.id, status: next } })
-      toast('Stav faktúry aktualizovaný')
+      await apiCall('addInvoicePayment', {
+        invoiceId: inv.id,
+        amountNet: rem,
+        paidDate: toIsoDate(new Date().toISOString()),
+      })
+      toast('Zvyšok faktúry uhradený')
       reload()
     } catch (e) {
       toast('Nepodarilo sa uložiť: ' + e.message, 'err')
     }
   }
 
+  const deletePayment = async (pay) => {
+    if (!window.confirm('Zmazať úhradu ' + fmtMoney(pay.amountNet) + ' z ' + fmtDate(pay.paidDate) + '?')) return
+    try {
+      await apiCall('deleteProjectPayment', { id: pay.id })
+      toast('Úhrada zmazaná')
+      reload()
+    } catch (e) {
+      toast('Nepodarilo sa zmazať: ' + e.message, 'err')
+    }
+  }
+
+  const canInvoices = canInvoicesFull || canInvoicesAdd
   const norm = normalizeStatus(project.status)
   const overdue = project.deadline && toIsoDate(project.deadline) < toIsoDate(new Date().toISOString())
     && norm !== 'odovzdany' && norm !== 'zruseny'
@@ -308,6 +461,24 @@ export default function ProjectDetail() {
       {tab === 'prehlad' && (
         <>
           <BudgetOverview summary={summary} project={project} />
+          {paymentSummary && (
+            <div className="stat-grid">
+              <div className="stat-card">
+                <div className="stat-label">Uhradené (bez DPH)</div>
+                <div className="stat-value">{fmtMoney(paymentSummary.paidNet)}</div>
+                <div className="stat-sub">z {fmtMoney(paymentSummary.contractNet)} ceny zákazky</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-label">Zostáva</div>
+                <div className={'stat-value' + (paymentSummary.remainingNet > 0.01 ? ' budget-label-warn' : '')}>
+                  {fmtMoney(paymentSummary.remainingNet)}
+                </div>
+                {norm === 'odovzdany' && paymentSummary.remainingNet > 0.01 && (
+                  <div className="stat-sub budget-label-warn">Projekt odovzdaný — doplatok ešte neprišiel</div>
+                )}
+              </div>
+            </div>
+          )}
           <div className="stat-grid">
             <div className="stat-card">
               <div className="stat-label">Stav</div>
@@ -406,6 +577,48 @@ export default function ProjectDetail() {
             )}
           </div>
 
+          {canInvoices && (
+            <div className="card">
+              <div className="card-head">
+                <h2>Úhrady od zákazníka ({payments.length})</h2>
+                {canInvoicesAdd && (
+                  <button className="btn btn-sm" onClick={() => setModal({ type: 'projectPayment' })}>+ Úhrada</button>
+                )}
+              </div>
+              {norm === 'odovzdany' && paymentSummary?.remainingNet > 0.01 && (
+                <p className="muted budget-label-warn" style={{ marginBottom: 10 }}>
+                  Projekt je odovzdaný; zostáva uhradiť {fmtMoney(paymentSummary.remainingNet)}.
+                </p>
+              )}
+              {payments.length === 0 ? <p className="muted">Zatiaľ žiadne zaznamenané úhrady.</p> : (
+                <table className="table">
+                  <thead>
+                    <tr><th>Dátum</th><th>Suma</th><th>Typ</th><th>Faktúra</th><th>Poznámka</th>{canInvoicesAdd && <th />}</tr>
+                  </thead>
+                  <tbody>
+                    {payments.map(pay => {
+                      const inv = issued.find(i => String(i.id) === String(pay.invoiceId))
+                      return (
+                        <tr key={pay.id}>
+                          <td>{fmtDate(pay.paidDate)}</td>
+                          <td className="num">{fmtMoney(pay.amountNet)}</td>
+                          <td>{PAYMENT_KIND_LABELS[pay.kind] || pay.kind || '—'}</td>
+                          <td>{inv ? displayInvoiceNumber(inv) : (pay.invoiceId ? pay.invoiceId : '—')}</td>
+                          <td className="muted">{pay.notes || '—'}</td>
+                          {canInvoicesAdd && (
+                            <td className="row-action">
+                              <button className="icon-btn" title="Zmazať" onClick={() => deletePayment(pay)}>✕</button>
+                            </td>
+                          )}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
           {canInvoicesFull && (
             <div className="card">
               <div className="card-head">
@@ -434,7 +647,7 @@ export default function ProjectDetail() {
             </div>
           )}
 
-          {canInvoicesFull && (
+          {canInvoices && (
             <div className="card">
               <div className="card-head">
                 <h2>Vydané faktúry ({issued.length})</h2>
@@ -458,9 +671,13 @@ export default function ProjectDetail() {
               </div>
               {issued.length === 0 ? <p className="muted">Žiadne vydané faktúry k projektu.</p> : (
                 <table className="table">
-                  <thead><tr><th>Číslo</th><th>Typ</th><th>Vystavená</th><th>Stav</th><th className="num">Suma</th><th /></tr></thead>
+                  <thead><tr><th>Číslo</th><th>Typ</th><th>Vystavená</th><th>Stav</th><th className="num">Suma</th><th className="num">Uhradené</th><th /></tr></thead>
                   <tbody>
-                    {issued.map(i => (
+                    {issued.map(i => {
+                      const st = i.paymentStatus || i.status || 'Neuhradená'
+                      const isOstra = i.type === 'ostra'
+                      const advance = isOstra ? issued.find(a => String(a.id) === String(i.relatedInvoiceId)) : null
+                      return (
                       <tr key={i.id}>
                         <td>
                           {i.driveLink
@@ -470,19 +687,29 @@ export default function ProjectDetail() {
                         <td>{TYPE_LABELS[i.type] || i.type || '—'}</td>
                         <td>{fmtDate(i.issueDate)}</td>
                         <td>
-                          <button
-                            className={'pill ' + (i.status === 'Uhradená' ? 'pill-ok' : 'pill-warn')}
-                            onClick={() => toggleIssuedPaid(i)}
-                          >{i.status || 'Neuhradená'}</button>
+                          {isOstra ? (
+                            <span className={'pill ' + invoiceStatusPillClass(st)} title={advance ? 'Zrkadlí stav zálohy ' + advance.number : ''}>
+                              {st}{advance ? ' (záloha ' + displayInvoiceNumber(advance) + ')' : ''}
+                            </span>
+                          ) : (
+                            <span className={'pill ' + invoiceStatusPillClass(st)}>{st}</span>
+                          )}
                         </td>
-                        <td className="num">{fmtMoney(i.amountGross || i.amount)}</td>
+                        <td className="num">{fmtMoney(i.amountNet || i.amount)}</td>
+                        <td className="num">{isOstra ? '—' : fmtMoney(i.paidNet || 0)}</td>
                         <td className="row-action">
-                          {i.type === 'zalohova' && i.status === 'Uhradená' && !hasOstraForAdvance(data.invoices, i.id) && (
+                          {!isOstra && canInvoicesAdd && parseNum(i.remainingNet) > 0.01 && (
+                            <>
+                              <button className="btn btn-sm btn-secondary" onClick={() => setModal({ type: 'invoicePayment', inv: i })}>+ Úhrada</button>
+                              <button className="btn btn-sm" style={{ marginLeft: 4 }} onClick={() => payInvoiceRemaining(i)}>Uhradiť zvyšok</button>
+                            </>
+                          )}
+                          {i.type === 'zalohova' && st === 'Uhradená' && !hasOstraForAdvance(data.invoices, i.id) && (
                             <button className="btn btn-sm btn-secondary" onClick={() => createOstra(i)}>Ostrá faktúra</button>
                           )}
                         </td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               )}
@@ -517,6 +744,25 @@ export default function ProjectDetail() {
           initialLanguage={invoiceLang}
           onClose={() => setModal(null)}
           onSaved={closeAndReload}
+        />
+      )}
+      {modal?.type === 'invoicePayment' && (
+        <InvoicePaymentModal
+          invoice={modal.inv}
+          onClose={() => setModal(null)}
+          onSaved={closeAndReload}
+        />
+      )}
+      {modal?.type === 'projectPayment' && (
+        <ProjectManualPaymentModal project={project} onClose={() => setModal(null)} onSaved={closeAndReload} />
+      )}
+      {deliveryModal && (
+        <DeliveryConfirmModal
+          remainingNet={deliveryModal.remainingNet}
+          openInvoices={deliveryModal.openInvoices}
+          onClose={() => setDeliveryModal(null)}
+          onConfirm={confirmDelivery}
+          saving={savingStatus}
         />
       )}
       {modal === 'assign' && (
