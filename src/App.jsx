@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route } from 'react-router-dom'
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './auth/AuthContext'
 import LoginScreen from './auth/LoginScreen'
 import RequirePerm from './auth/RequirePerm'
@@ -52,7 +52,8 @@ export default function App() {
           <Route path="projekty/:id" element={<RequirePerm perm="perm_projects_read"><ProjectDetail /></RequirePerm>} />
           <Route path="dielna" element={<RequirePerm perm="perm_projects_read"><Workshop /></RequirePerm>} />
           <Route path="faktury" element={<RequirePerm perm="perm_invoices_full"><Invoices /></RequirePerm>} />
-          <Route path="naklady" element={<RequirePerm perm="perm_costs_full"><Costs /></RequirePerm>} />
+          <Route path="ekonomika" element={<RequirePerm perm="perm_costs_full"><Costs /></RequirePerm>} />
+          <Route path="naklady" element={<Navigate to="/ekonomika" replace />} />
           <Route path="statistiky" element={<RequirePerm perm="perm_costs_full"><PricingStats /></RequirePerm>} />
           <Route path="zamestnanci" element={<RequirePerm perm="perm_employees"><Employees /></RequirePerm>} />
           <Route path="administracia" element={<RequirePerm perm="perm_admin"><Admin /></RequirePerm>} />

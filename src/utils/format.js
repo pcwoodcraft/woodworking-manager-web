@@ -144,3 +144,12 @@ export function fmtMonth(ym) {
 export function invoiceMonth(inv) {
   return (toIsoDate(inv.dueDate) || toIsoDate(inv.issueDate) || '').substring(0, 7)
 }
+
+/** Mesiac nákladu (YYYY-MM) — odolné voči dátumom z Google Sheets. */
+export function costMonth(row) {
+  const raw = row && row.month != null ? String(row.month).trim() : ''
+  if (/^\d{4}-\d{2}$/.test(raw)) return raw
+  const iso = toIsoDate(raw)
+  if (iso && iso.length >= 7) return iso.substring(0, 7)
+  return raw.substring(0, 7)
+}

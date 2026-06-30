@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { apiCall } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox } from '../../components/ui'
 import { fmtMoney, fmtPercent } from '../../utils/format'
+
+function fmtHoursVar(h) {
+  if (h == null) return '—'
+  const sign = h > 0 ? '+' : ''
+  return sign + h + ' h'
+}
 
 export default function PricingStats() {
   const { can } = useAuth()
@@ -83,21 +90,24 @@ export default function PricingStats() {
           <div className="stat-value">{d.eligibleCount}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Priemerná marža</div>
+          <div className="stat-label">Marža (%)</div>
           <div className="stat-value">{d.avgMarginPercent != null ? fmtPercent(d.avgMarginPercent) : '—'}</div>
           <div className="stat-sub">medián {d.medianMarginPercent != null ? fmtPercent(d.medianMarginPercent) : '—'}</div>
         </div>
         <div className="stat-card">
+          <div className="stat-label">Marža (€)</div>
+          <div className="stat-value">{d.avgMarginNet != null ? fmtMoney(d.avgMarginNet) : '—'}</div>
+          <div className="stat-sub">medián {d.medianMarginNet != null ? fmtMoney(d.medianMarginNet) : '—'}</div>
+        </div>
+        <div className="stat-card">
           <div className="stat-label">Odchýlka hodín</div>
-          <div className="stat-value">
-            {d.avgHoursVariancePercent != null ? fmtPercent(d.avgHoursVariancePercent) : '—'}
-          </div>
+          <div className="stat-value">{d.avgHoursVariance != null ? fmtHoursVar(d.avgHoursVariance) : '—'}</div>
           <div className="stat-sub">
             {d.hoursEstimateNote || (d.withHoursEstimateCount + ' projektov s odhadom')}
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Odchýlka materiálu (priemer)</div>
+          <div className="stat-label">Odchýlka materiálu</div>
           <div className="stat-value">{d.avgMaterialVariance != null ? fmtMoney(d.avgMaterialVariance) : '—'}</div>
         </div>
       </div>
@@ -110,24 +120,41 @@ export default function PricingStats() {
       ) : d.productTypeBreakdown.length > 0 && (
         <section className="card" style={{ marginTop: 16 }}>
           <h2>Podľa typu produktu</h2>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Typ</th><th className="num">Počet</th>
-                <th className="num">Priem. marža</th><th className="num">Priem. odchýlka hodín</th>
-              </tr>
-            </thead>
-            <tbody>
-              {d.productTypeBreakdown.map(row => (
-                <tr key={row.productType}>
-                  <td>{row.productType === 'bez_typu' ? 'Bez typu' : row.productType}</td>
-                  <td className="num">{row.count}</td>
-                  <td className="num">{row.avgMarginPercent != null ? fmtPercent(row.avgMarginPercent) : '—'}</td>
-                  <td className="num">{row.avgHoursVariancePercent != null ? fmtPercent(row.avgHoursVariancePercent) : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {d.productTypeBreakdown.map(row => (
+            <details key={row.productType} style={{ marginBottom: 12 }}>
+              <summary style={{ cursor: 'pointer', padding: '8px 0' }}>
+                <strong>{row.productType === 'bez_typu' ? 'Bez typu' : row.productType}</strong>
+                {' · '}{row.count} projektov
+                {' · '}marža {row.avgMarginPercent != null ? fmtPercent(row.avgMarginPercent) : '—'}
+                {' / '}{row.avgMarginNet != null ? fmtMoney(row.avgMarginNet) : '—'}
+              </summary>
+              <table className="table" style={{ marginTop: 8 }}>
+                <thead>
+                  <tr>
+                    <th>Projekt</th>
+                    <th className="num">Marža %</th>
+                    <th className="num">Marža €</th>
+                    <th className="num">Odch. hodín</th>
+                    <th className="num">Odch. materiálu</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(row.projects || []).map(p => (
+                    <tr key={p.projectId}>
+                      <td>
+                        <Link to={'/projekty/' + p.projectId}>{p.name}</Link>
+                        <div className="muted">{p.customer}</div>
+                      </td>
+                      <td className="num">{p.marginPercent != null ? fmtPercent(p.marginPercent) : '—'}</td>
+                      <td className="num">{p.marginNet != null ? fmtMoney(p.marginNet) : '—'}</td>
+                      <td className="num">{fmtHoursVar(p.hoursVariance)}</td>
+                      <td className="num">{p.materialVariance != null ? fmtMoney(p.materialVariance) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </details>
+          ))}
         </section>
       )}
     </div>

@@ -118,7 +118,8 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
       const res = await apiCall('convertDealToProject', { dealId })
       if (res.driveWarning) toast('Projekt vytvorený, Drive: ' + res.driveWarning, 'err')
       else toast('Projekt ' + res.projectId + ' vytvorený')
-      await refresh()
+      onClose()
+      navigate('/projekty/' + res.projectId)
     } catch (e) {
       toast(e.message, 'err')
     } finally {
