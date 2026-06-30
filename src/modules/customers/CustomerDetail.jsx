@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { apiCall } from '../../api/client'
+import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox, StatusBadge } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import Modal from '../../components/Modal'
@@ -9,10 +10,12 @@ import CustomerForm from './CustomerForm'
 import DealDetailModal from './DealDetailModal'
 import ActivityModal from './ActivityModal'
 import CrmTaskModal from './CrmTaskModal'
+import ComplaintModal from './ComplaintModal'
 import {
   ACTIVITY_TYPES, CRM_TASK_PRIORITIES, DEAL_PHASES, DEAL_SOURCES,
   customerDisplayName, customerStatusLabel, customerTypeLabel, contactTypeLabel,
   dealStatusLabel, phaseLabel, sourceLabel,
+  complaintStatusLabel, complaintResponsibilityLabel,
 } from './crmConstants'
 import SalesOwnerSelect from './SalesOwnerSelect'
 
@@ -156,6 +159,8 @@ function DealModal({ customerId, deal, onClose, onSaved }) {
 export default function CustomerDetail() {
   const { id } = useParams()
   const toast = useToast()
+  const { can } = useAuth()
+  const isAdmin = can('perm_admin')
   const [state, setState] = useState({ loading: true, error: null })
   const [data, setData] = useState(null)
   const [editCustomer, setEditCustomer] = useState(false)
@@ -207,13 +212,24 @@ export default function CustomerDetail() {
     }
   }
 
+  const deleteComplaint = async (complaintId) => {
+    if (!window.confirm('Odstrániť reklamáciu zo zoznamu? (Záznam ostane v databáze.)')) return
+    try {
+      await apiCall('deleteComplaint', { id: complaintId })
+      toast('Reklamácia odstránená')
+      load()
+    } catch (e) {
+      toast(e.message, 'err')
+    }
+  }
+
   if (state.loading) return <Spinner />
   if (state.error) return <ErrorBox error={state.error} onRetry={load} />
   if (!data) return null
 
-  const { customer, contacts, deals, activities, crmTasks, projects, invoices,
+  const { customer, contacts, deals, activities, crmTasks, projects, invoices, complaints = [],
     turnover, turnoverLastYear, openDealsCount, openDealsValue,
-    runningProjectsCount, runningProjectsValue, finishedProjectsCount } = data
+    runningProjectsCount, runningProjectsValue, finishedProjectsCount, isOrphan } = data
   const name = customerDisplayName(customer)
 
   return (
@@ -224,6 +240,11 @@ export default function CustomerDetail() {
       <header className="page-head">
         <div>
           <h1>{name}</h1>
+          {isAdmin && isOrphan && (
+            <span className="kanban-stale-badge" style={{ marginTop: 6, display: 'inline-block' }}>
+              Osirelý — chýba obchodník
+            </span>
+          )}
           {customer.company && customer.firstName && (
             <p className="muted">{customer.company}</p>
           )}
@@ -421,6 +442,34 @@ export default function CustomerDetail() {
       </div>
 
       <div className="card">
+        <div className="card-head">
+          <h2>Reklamácie</h2>
+          <button className="btn btn-sm" onClick={() => setModal({ type: 'complaint' })}>+ Reklamácia</button>
+        </div>
+        {complaints.length === 0 ? <p className="muted">Zatiaľ žiadna reklamácia.</p> : (
+          <table className="table">
+            <thead><tr><th>Dátum</th><th>Projekt</th><th>Popis</th><th>Stav</th><th>Zodpovednosť</th><th className="num">Náklady</th><th /></tr></thead>
+            <tbody>
+              {complaints.map(c => (
+                <tr key={c.id} className="table-click" onClick={() => setModal({ type: 'complaint', item: c })}>
+                  <td>{fmtDate(c.date)}</td>
+                  <td>{c.projectId ? (projects.find(p => p.id === c.projectId)?.name || c.projectId) : '—'}</td>
+                  <td>{c.description?.length > 60 ? c.description.slice(0, 60) + '…' : c.description}</td>
+                  <td>{complaintStatusLabel(c.status)}</td>
+                  <td>{complaintResponsibilityLabel(c.responsibility)}</td>
+                  <td className="num">{c.cost ? fmtMoney(c.cost) : '—'}</td>
+                  <td className="row-action" onClick={e => e.stopPropagation()}>
+                    <button className="icon-btn" onClick={() => setModal({ type: 'complaint', item: c })}>✎</button>{' '}
+                    <button className="icon-btn" onClick={() => deleteComplaint(c.id)}>🗑</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="card">
         <h2>Faktúry (IS)</h2>
         {invoices.length === 0 ? <p className="muted">Žiadne faktúry.</p> : (
           <table className="table">
@@ -472,6 +521,15 @@ export default function CustomerDetail() {
           customerId={id}
           deals={deals}
           task={modal.item}
+          onClose={() => setModal(null)}
+          onSaved={() => { setModal(null); load() }}
+        />
+      )}
+      {modal?.type === 'complaint' && (
+        <ComplaintModal
+          customerId={id}
+          projects={projects}
+          complaint={modal.item}
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); load() }}
         />

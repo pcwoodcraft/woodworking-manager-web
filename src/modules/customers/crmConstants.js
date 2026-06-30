@@ -180,3 +180,26 @@ export const CONTACT_TYPES = [
 export function contactTypeLabel(code) {
   return CONTACT_TYPES.find(t => t.value === code)?.label || code || '—'
 }
+
+export const COMPLAINT_STATUSES = [
+  { value: 'nova', label: 'Nová' },
+  { value: 'riesi_sa', label: 'Rieši sa' },
+  { value: 'vyriesena', label: 'Vyriešená' },
+  { value: 'zamietnuta', label: 'Zamietnutá' },
+]
+
+export const COMPLAINT_RESPONSIBILITIES = [
+  { value: 'vyroba', label: 'Výroba' },
+  { value: 'doprava', label: 'Doprava' },
+  { value: 'dodavatel', label: 'Dodávateľ' },
+  { value: 'montaz', label: 'Montáž' },
+  { value: 'ine', label: 'Iné' },
+]
+
+export function complaintStatusLabel(code) {
+  return COMPLAINT_STATUSES.find(s => s.value === code)?.label || code || '—'
+}
+
+export function complaintResponsibilityLabel(code) {
+  return COMPLAINT_RESPONSIBILITIES.find(r => r.value === code)?.label || code || '—'
+}

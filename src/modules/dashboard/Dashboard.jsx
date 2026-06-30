@@ -12,9 +12,12 @@ export default function Dashboard() {
   const { can } = useAuth()
   const navigate = useNavigate()
   const [state, setState] = useState({ loading: true, error: null, data: null })
+  const [crmSummary, setCrmSummary] = useState(null)
 
   const showFinance = can('perm_invoices_full')
   const showProjects = can('perm_projects_read')
+  const showCrm = can('perm_customers')
+  const isAdmin = can('perm_admin')
 
   const applyData = (d) => setState({ loading: false, error: null, data: d })
 
@@ -23,9 +26,12 @@ export default function Dashboard() {
     if (hit) applyData(hit)
     else setState({ loading: true, error: null, data: null })
     try {
-      const page = await apiCall('getDashboardPage')
+      const calls = [apiCall('getDashboardPage')]
+      if (showCrm) calls.push(apiCall('getCrmDashboardSummary'))
+      const [page, crm] = await Promise.all(calls)
       cacheSet('dashboardPage', page)
       applyData(page)
+      if (showCrm) setCrmSummary(crm)
     } catch (e) {
       if (!hit) setState({ loading: false, error: e, data: null })
     }
@@ -78,6 +84,40 @@ export default function Dashboard() {
           </>
         )}
       </div>
+
+      {showCrm && crmSummary && (
+        <section className="card">
+          <div className="card-head">
+            <h2>CRM</h2>
+            <Link to="/zakaznici/prehlad" className="btn btn-sm btn-secondary">Plný prehľad →</Link>
+          </div>
+          <div className="stat-grid">
+            <div className="stat-card">
+              <div className="stat-label">Otvorené dopyty</div>
+              <div className="stat-value">{crmSummary.openDealsCount}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">Pipeline (obchodné fázy)</div>
+              <div className="stat-value stat-value-sm">{fmtMoney(crmSummary.pipelineValue)}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">Vážený pipeline</div>
+              <div className="stat-value stat-value-sm">{fmtMoney(crmSummary.weightedPipelineValue)}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">Bez kontaktu 30+ dní</div>
+              <div className="stat-value">{crmSummary.inactiveCustomers30Count}</div>
+            </div>
+            {isAdmin && crmSummary.orphanedCustomersCount > 0 && (
+              <Link to="/zakaznici/prehlad" className="stat-card" style={{ textDecoration: 'none', borderColor: 'var(--gold-soft)' }}>
+                <div className="stat-label">Osirelí zákazníci</div>
+                <div className="stat-value budget-label-warn">{crmSummary.orphanedCustomersCount}</div>
+                <div className="stat-sub">Bez obchodníka — priraďte v detaile</div>
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
 
       {showProjects && topWarnings.length > 0 && (
         <section className="card">

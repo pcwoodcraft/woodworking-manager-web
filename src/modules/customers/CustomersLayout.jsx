@@ -5,6 +5,7 @@ const SUBNAV = [
   { to: '/zakaznici/novy-dopyt', label: 'Nový dopyt' },
   { to: '/zakaznici/pipeline', label: 'Pipeline' },
   { to: '/zakaznici/dnes', label: 'Dnes' },
+  { to: '/zakaznici/prehlad', label: 'Prehľad' },
   { to: '/zakaznici/ponuky', label: 'Cenové ponuky' },
 ]
 

@@ -13,6 +13,7 @@ import CustomerDetail from './modules/customers/CustomerDetail'
 import QuickDealForm from './modules/customers/QuickDealForm'
 import Pipeline from './modules/customers/Pipeline'
 import CrmToday from './modules/customers/CrmToday'
+import CrmOverview from './modules/customers/CrmOverview'
 import QuotesList from './modules/quotes/QuotesList'
 import QuoteForm from './modules/quotes/QuoteForm'
 import QuoteDetail from './modules/quotes/QuoteDetail'
@@ -39,6 +40,7 @@ export default function App() {
             <Route path="novy-dopyt" element={<QuickDealForm />} />
             <Route path="pipeline" element={<Pipeline />} />
             <Route path="dnes" element={<CrmToday />} />
+            <Route path="prehlad" element={<CrmOverview />} />
             <Route path="ponuky" element={<QuotesList />} />
             <Route path="ponuky/nova" element={<><header className="page-head"><h1>Nová cenová ponuka</h1></header><QuoteForm /></>} />
             <Route path="ponuky/:id" element={<QuoteDetail />} />
