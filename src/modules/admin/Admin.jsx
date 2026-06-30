@@ -7,6 +7,7 @@ import Modal from '../../components/Modal'
 import InvoiceSettingsPanel from './InvoiceSettingsPanel'
 import DiagnosticsPanel from './DiagnosticsPanel'
 import FailedTimeEntriesPanel from './FailedTimeEntriesPanel'
+import RemindersEmailPanel from './RemindersEmailPanel'
 
 const PERM_LABELS = {
   perm_customers: 'Zákazníci (CRM)',
@@ -207,6 +208,8 @@ export default function Admin() {
       </div>
 
       <FailedTimeEntriesPanel />
+
+      <RemindersEmailPanel />
 
       <DiagnosticsPanel />
 

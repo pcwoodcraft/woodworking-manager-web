@@ -4,6 +4,7 @@ import { apiCall } from '../../api/client'
 import { cacheGet, cacheSet } from '../../api/cache'
 import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox, StatusBadge } from '../../components/ui'
+import OperationalAlertsSection from '../../components/OperationalAlertsSection'
 import {
   fmtMoney, fmtDate, fmtPercent, parseNum, isRunningStatus, toIsoDate, budgetLevel, projectPriceNet,
 } from '../../utils/format'
@@ -42,7 +43,7 @@ export default function Dashboard() {
   if (state.loading && !state.data) return <Spinner />
   if (state.error) return <ErrorBox error={state.error} onRetry={load} />
 
-  const { projects, incoming, invoices, warnings } = state.data
+  const { projects, incoming, invoices, warnings, alerts = [] } = state.data
   const running = projects.filter(p => isRunningStatus(p.status))
   const unpaid = incoming.filter(i => i.status === 'Nezaplatená')
   const unpaidSum = unpaid.reduce((s, i) => s + parseNum(i.amountGross), 0)
@@ -117,6 +118,10 @@ export default function Dashboard() {
             )}
           </div>
         </section>
+      )}
+
+      {(showProjects || showCrm) && alerts.length > 0 && (
+        <OperationalAlertsSection alerts={alerts} limit={10} />
       )}
 
       {showProjects && topWarnings.length > 0 && (

@@ -11,6 +11,7 @@ const MENU = [
   { to: '/dielna', label: 'Dielňa', icon: '◰', perm: 'perm_projects_read' },
   { to: '/faktury', label: 'Faktúry', icon: '◫', perm: 'perm_invoices_full' },
   { to: '/naklady', label: 'Náklady', icon: '◭', perm: 'perm_costs_full' },
+  { to: '/statistiky', label: 'Štatistiky', icon: '◬', perm: 'perm_costs_full' },
   { to: '/zamestnanci', label: 'Zamestnanci', icon: '◗', perm: 'perm_employees' },
   { to: '/administracia', label: 'Administrácia', icon: '⚙', perm: 'perm_admin' },
 ]

@@ -8,6 +8,7 @@ import { fmtDate, fmtMoney } from '../../utils/format'
 import { phaseLabel } from './crmConstants'
 import CrmTaskModal from './CrmTaskModal'
 import DealDetailModal from './DealDetailModal'
+import OperationalAlertsSection from '../../components/OperationalAlertsSection'
 
 function Section({ title, empty, children }) {
   return (
@@ -129,6 +130,10 @@ export default function CrmToday() {
           </label>
         )}
       </div>
+
+      {(data.alerts || []).length > 0 && (
+        <OperationalAlertsSection alerts={data.alerts} />
+      )}
 
       <Section title="Úlohy na dnes" empty={!data.tasksToday.length ? 'Dnes žiadne úlohy.' : null}>
         {data.tasksToday.length > 0 && (

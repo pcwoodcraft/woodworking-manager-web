@@ -12,12 +12,14 @@ import {
 } from './crmConstants'
 import { quoteStatusLabel } from '../quotes/quoteConstants'
 import SalesOwnerSelect from './SalesOwnerSelect'
+import ProjectEvaluationSection from '../projects/ProjectEvaluationSection'
 
 export default function DealDetailModal({ dealId, onClose, onUpdated }) {
   const toast = useToast()
   const navigate = useNavigate()
   const { can } = useAuth()
   const canWriteProject = can('perm_projects_write')
+  const canSeeCosts = can('perm_costs_add') || can('perm_costs_full')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [data, setData] = useState(null)
@@ -208,7 +210,7 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
     )
   }
 
-  const { deal, quotes = [], quoteLinks, project, summary, invoices } = data
+  const { deal, quotes = [], quoteLinks, project, summary, evaluation, paymentSummary, invoices } = data
   const showConvert = canWriteProject && canConvertDealToProject(deal)
 
   const quoteAmount = (q) => {
@@ -285,11 +287,21 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
             {' — '}{project.name}
             {' '}<StatusBadge status={project.status} />
           </p>
-          {summary && (
+          {summary && canSeeCosts && (
             <div className="detail-grid" style={{ marginTop: 10 }}>
               <div><span className="muted">Náklady</span><div>{fmtMoney(summary.totalCost)}</div></div>
-              <div><span className="muted">Marža</span><div>{fmtPercent(summary.marginPercent)}</div></div>
               <div><span className="muted">Rozpočet</span><div>{summary.costPercent != null ? fmtPercent(summary.costPercent) : '—'}</div></div>
+            </div>
+          )}
+          {paymentSummary && !canSeeCosts && (
+            <div className="detail-grid" style={{ marginTop: 10 }}>
+              <div><span className="muted">Uhradené</span><div>{fmtMoney(paymentSummary.paidNet)}</div></div>
+              <div><span className="muted">Zostáva</span><div>{fmtMoney(paymentSummary.remainingNet)}</div></div>
+            </div>
+          )}
+          {evaluation && String(project.status) === 'odovzdany' && (
+            <div style={{ marginTop: 12 }}>
+              <ProjectEvaluationSection evaluation={evaluation} canSeeCosts={canSeeCosts} embedded />
             </div>
           )}
           {project.driveFolderUrl && (

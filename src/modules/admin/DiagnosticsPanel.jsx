@@ -89,6 +89,18 @@ export default function DiagnosticsPanel() {
               {server.recommendations.map((r, i) => <li key={i} style={{ marginBottom: 6 }}>{r}</li>)}
             </ul>
           )}
+          {server.evaluationDataQuality && !server.evaluationDataQuality.error && (
+            <>
+              <h3 style={{ fontSize: 14, marginBottom: 8 }}>Kvalita dát pre vyhodnotenie (F5)</h3>
+              <p className="muted" style={{ marginBottom: 8 }}>
+                Eligible projektov (odovzdané, plne uhradené): {server.evaluationDataQuality.eligibleCount}
+                {' · '}odhad hodín {server.evaluationDataQuality.estimatedHours.percent}%
+                {' · '}odhad materiálu {server.evaluationDataQuality.estimatedMaterialCosts.percent}%
+                {' · '}typ produktu {server.evaluationDataQuality.productType.percent}%
+                {server.evaluationDataQuality.productType.breakdownReady ? ' (breakdown OK)' : ' (breakdown skrytý)'}
+              </p>
+            </>
+          )}
           <h3 style={{ fontSize: 14, marginBottom: 8 }}>Listy v tabuľke (zoradené podľa času čítania)</h3>
           <table className="table" style={{ marginBottom: 16 }}>
             <thead>

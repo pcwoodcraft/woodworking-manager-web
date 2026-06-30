@@ -22,6 +22,7 @@ function hasOstraForAdvance(invoices, advanceId) {
 }
 import ProjectFilesTab from './ProjectFilesTab'
 import ManualTimeEntryForm from './ManualTimeEntryForm'
+import ProjectEvaluationSection from './ProjectEvaluationSection'
 import {
   fmtMoney, fmtDate, fmtPercent, parseNum, toIsoDate,
   PROJECT_STATUSES, normalizeStatus, statusLabel, budgetLevel,
@@ -215,6 +216,7 @@ export default function ProjectDetail() {
   const canInvoicesFull = can('perm_invoices_full')
   const canInvoicesAdd = can('perm_invoices_add')
   const canCostsAdd = can('perm_costs_add')
+  const canSeeCosts = can('perm_costs_add') || can('perm_costs_full')
   const canFiles = can('perm_files')
 
   const [state, setState] = useState({ loading: true, error: null })
@@ -227,6 +229,7 @@ export default function ProjectDetail() {
   const [invoiceLang, setInvoiceLang] = useState('sk')
   const [paymentSummary, setPaymentSummary] = useState(null)
   const [payments, setPayments] = useState([])
+  const [evaluation, setEvaluation] = useState(null)
   const [deliveryModal, setDeliveryModal] = useState(null)
 
   const applyPage = (page) => {
@@ -241,6 +244,7 @@ export default function ProjectDetail() {
     setSummary(page.summary)
     setPaymentSummary(page.paymentSummary || null)
     setPayments(page.payments || [])
+    setEvaluation(page.evaluation || null)
   }
 
   const load = async () => {
@@ -500,6 +504,9 @@ export default function ProjectDetail() {
           </div>
           {project.notes && (
             <div className="card"><h2>Poznámky</h2><p className="prewrap">{project.notes}</p></div>
+          )}
+          {norm === 'odovzdany' && (
+            <ProjectEvaluationSection evaluation={evaluation} canSeeCosts={canSeeCosts} />
           )}
         </>
       )}
