@@ -507,6 +507,103 @@ input:disabled { background: var(--paper); color: var(--text-2); }
   margin-top: 6px;
 }
 
+/* ── Ateliér — galéria a lightbox ─────────────────────────── */
+.atelier-gallery-card { margin-top: 20px; }
+.atelier-gallery-head { flex-direction: column; align-items: flex-start; gap: 4px; }
+.atelier-gallery-hint { font-size: 12.5px; margin: 0; }
+.atelier-filters { margin-bottom: 16px; }
+.atelier-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+.atelier-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.atelier-card-thumb-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.atelier-card-thumb-btn:hover .atelier-thumb { opacity: 0.92; }
+.atelier-thumb {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: #eee;
+  display: block;
+}
+.atelier-thumb.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.atelier-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.atelier-card-date { font-size: 12px; }
+.atelier-card-prompt { font-size: 0.85em; line-height: 1.35; }
+.atelier-card-quotes { font-size: 12px; }
+.atelier-quality-preview { background: #ece7f5; color: var(--violet); }
+.atelier-quality-final { background: #e3edd9; color: #4a6b2a; }
+.atelier-quality-upload { background: #dceaf5; color: var(--blue); }
+.atelier-lightbox {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 760px) {
+  .atelier-lightbox { grid-template-columns: 1fr; }
+}
+.atelier-lightbox-preview {
+  background: #f0eeea;
+  border-radius: 8px;
+  min-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.atelier-lightbox-img {
+  max-height: 70vh;
+  height: auto !important;
+  width: auto !important;
+  max-width: 100%;
+  object-fit: contain;
+}
+.atelier-lightbox-meta { font-size: 14px; }
+.atelier-lightbox-meta p { margin-bottom: 10px; }
+.atelier-lightbox-prompt {
+  white-space: pre-wrap;
+  font-size: 13px;
+  color: var(--text-2);
+  max-height: 160px;
+  overflow-y: auto;
+}
+.atelier-lightbox-attach {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.atelier-lightbox-foot {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  width: 100%;
+}
+
 /* ── Prepínače práv ──────────────────────────────────────── */
 .perm-list { display: flex; flex-direction: column; gap: 2px; margin-top: 12px; }
 .switch-row {
