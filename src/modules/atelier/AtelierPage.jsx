@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { apiCall } from '../../api/client'
 import { useToast } from '../../components/Toast'
 import { Spinner, ErrorBox } from '../../components/ui'
+import AtelierThumb from '../../components/AtelierThumb'
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -10,18 +11,6 @@ function fileToBase64(file) {
     reader.onerror = reject
     reader.readAsDataURL(file)
   })
-}
-
-function AtelierThumb({ fileId }) {
-  const [src, setSrc] = useState('')
-  useEffect(() => {
-    if (!fileId) return
-    apiCall('getAtelierImagePreview', { fileId })
-      .then(d => setSrc('data:' + d.mimeType + ';base64,' + d.dataBase64))
-      .catch(() => setSrc(''))
-  }, [fileId])
-  if (!src) return <div className="atelier-thumb placeholder">…</div>
-  return <img src={src} alt="" className="atelier-thumb" />
 }
 
 export default function AtelierPage() {
@@ -83,7 +72,10 @@ export default function AtelierPage() {
 
   const generate = async () => {
     if (!prompt.trim()) { toast('Zadajte pokyn', 'err'); return }
-    if (!baseImage) { toast('Nahrajte podklad (výkres)', 'err'); return }
+    if (!baseImage && refs.length === 0) {
+      toast('Nahrajte aspoň jeden podklad — výkres alebo fotografiu', 'err')
+      return
+    }
     setGenerating(true)
     try {
       const res = await apiCall('generateVisualization', {
@@ -169,11 +161,11 @@ export default function AtelierPage() {
             </select>
           </label>
           <label className="field">
-            <span>Podklad (výkres) *</span>
+            <span>Podklad (výkres alebo fotografia) *</span>
             <input type="file" accept="image/*" onChange={onBaseFile} />
           </label>
           <label className="field">
-            <span>Referenčné fotky (max 3)</span>
+            <span>Referenčné fotky (voliteľné, max 3)</span>
             <input type="file" accept="image/*" multiple onChange={onRefFiles} />
           </label>
         </div>

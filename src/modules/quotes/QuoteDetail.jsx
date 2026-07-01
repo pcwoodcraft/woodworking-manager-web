@@ -7,6 +7,7 @@ import { Spinner, ErrorBox } from '../../components/ui'
 import { fmtDate, fmtMoney } from '../../utils/format'
 import { quoteStatusLabel, quoteTaxModeLabel } from './quoteConstants'
 import QuoteForm from './QuoteForm'
+import QuoteVisualizations from './QuoteVisualizations'
 
 export default function QuoteDetail() {
   const { id } = useParams()
@@ -61,11 +62,21 @@ export default function QuoteDetail() {
   }
 
   if (mode === 'edit') {
+    if (state.loading) return <Spinner label="Načítava sa…" />
+    if (state.error) return <ErrorBox message={state.error} onRetry={load} />
     return (
       <>
         <header className="page-head">
           <h1>Upraviť ponuku</h1>
         </header>
+        {data?.quote && (
+          <QuoteVisualizations
+            quoteId={id}
+            quote={data.quote}
+            frozen={data.quote.isFrozen}
+            onUpdated={load}
+          />
+        )}
         <QuoteForm
           quoteId={id}
           onSaved={() => { setMode('view'); load() }}
@@ -128,6 +139,13 @@ export default function QuoteDetail() {
           <div><span className="muted">Brutto</span><div>{fmtMoney(q.totalGross)}</div></div>
         </div>
       </div>
+
+      <QuoteVisualizations
+        quoteId={id}
+        quote={q}
+        frozen={q.isFrozen}
+        onUpdated={load}
+      />
 
       <div className="card" style={{ marginTop: 16 }}>
         <h3 style={{ marginTop: 0 }}>Položky</h3>
