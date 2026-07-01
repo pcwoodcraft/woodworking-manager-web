@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { apiCall } from '../../api/client'
 import { Spinner, ErrorBox } from '../../components/ui'
 import { useToast } from '../../components/Toast'
@@ -131,8 +132,13 @@ export default function Costs() {
   if (state.error) return <ErrorBox error={state.error} onRetry={load} />
   if (!data) return <Spinner />
 
-  const { fixed, oneoff, labor, incoming } = data
+  const { fixed, oneoff, labor, incoming, incomeProjects = [] } = data
   const cfClass = data.monthResultNet < 0 ? 'budget-label-over' : ''
+
+  const formatPaidDates = (dates) => {
+    if (!dates || !dates.length) return '—'
+    return dates.map(d => fmtDate(d)).join(', ')
+  }
 
   const endFixed = async (c) => {
     if (!window.confirm('Ukončiť fixný náklad „' + c.name + '“? Od budúceho mesiaca sa prestane počítať, história zostáva.')) return
@@ -225,6 +231,51 @@ export default function Costs() {
         Zobrazené sú len uhradené pohyby (mzdy, prijaté faktúry). Neuhradené doklady sa započítajú v mesiaci úhrady.
         Fixné náklady sa berú každý mesiac podľa platnosti (nemajú dátum úhrady).
       </p>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-head">
+          <h2>Príjmy — úhrady projektov ({incomeProjects.length}) — {fmtMoney(data.monthIncomeNet)}</h2>
+        </div>
+        {incomeProjects.length === 0 ? (
+          <p className="muted">V tomto mesiaci neboli zaznamenané úhrady projektov.</p>
+        ) : (
+          <>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Zákazník</th>
+                  <th>Projekt</th>
+                  <th className="num">Celková suma</th>
+                  <th className="num">Uhradená suma</th>
+                  <th className="num">Zostáva uhradiť (aktuálne)</th>
+                  <th>Dátum úhrady</th>
+                </tr>
+              </thead>
+              <tbody>
+                {incomeProjects.map(row => (
+                  <tr key={row.projectId}>
+                    <td>
+                      {row.customerId ? (
+                        <Link to={'/zakaznici/' + row.customerId}>{row.customerName || row.customerId}</Link>
+                      ) : (row.customerName || '—')}
+                    </td>
+                    <td className="strong">
+                      <Link to={'/projekty/' + row.projectId}>{row.projectName || row.projectId}</Link>
+                    </td>
+                    <td className="num">{fmtMoney(row.contractNet)}</td>
+                    <td className="num">{fmtMoney(row.paidInMonthNet)}</td>
+                    <td className="num">{fmtMoney(row.remainingNet)}</td>
+                    <td>{formatPaidDates(row.paidDates)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="muted" style={{ marginTop: 10, fontSize: 13 }}>
+              Zostatok „Zostáva uhradiť“ je stav k dnešku, nie k zvolenému mesiacu.
+            </p>
+          </>
+        )}
+      </div>
 
       {section('Fixné náklady', fixed, data.fixedSum, 'fixed', (
         <table className="table">
