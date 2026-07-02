@@ -12,6 +12,7 @@ const MENU = [
   { to: '/faktury', label: 'Faktúry', icon: '◫', perm: 'perm_invoices_full' },
   { to: '/ekonomika', label: 'Ekonomika', icon: '◭', perm: 'perm_costs_full' },
   { to: '/statistiky', label: 'Štatistiky', icon: '◬', perm: 'perm_costs_full' },
+  { to: '/socialne-siete', label: 'Sociálne siete', icon: '◉', perm: 'perm_social' },
   { to: '/zamestnanci', label: 'Zamestnanci', icon: '◗', perm: 'perm_employees' },
   { to: '/administracia', label: 'Administrácia', icon: '⚙', perm: 'perm_admin' },
 ]

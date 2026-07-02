@@ -8,6 +8,8 @@ import InvoiceSettingsPanel from './InvoiceSettingsPanel'
 import DiagnosticsPanel from './DiagnosticsPanel'
 import FailedTimeEntriesPanel from './FailedTimeEntriesPanel'
 import RemindersEmailPanel from './RemindersEmailPanel'
+import SocialPostSettingsPanel from './SocialPostSettingsPanel'
+import FailedSocialPostsPanel from './FailedSocialPostsPanel'
 
 const PERM_LABELS = {
   perm_customers: 'Zákazníci (CRM)',
@@ -20,6 +22,7 @@ const PERM_LABELS = {
   perm_employees: 'Zamestnanci a mzdové údaje',
   perm_timesheets: 'Výkazy práce',
   perm_files: 'Súbory k projektom',
+  perm_social: 'Sociálne siete — schvaľovanie',
   perm_admin: 'Správa používateľov',
 }
 
@@ -208,6 +211,10 @@ export default function Admin() {
       </div>
 
       <FailedTimeEntriesPanel />
+
+      <FailedSocialPostsPanel />
+
+      <SocialPostSettingsPanel />
 
       <RemindersEmailPanel />
 

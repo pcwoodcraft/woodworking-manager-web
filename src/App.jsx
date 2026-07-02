@@ -24,6 +24,8 @@ import Employees from './modules/employees/Employees'
 import Admin from './modules/admin/Admin'
 import Workshop from './modules/workshop/Workshop'
 import PricingStats from './modules/stats/PricingStats'
+import SocialPostsPage from './modules/social/SocialPostsPage'
+import SocialPostDetail from './modules/social/SocialPostDetail'
 
 export default function App() {
   const { status } = useAuth()
@@ -55,6 +57,8 @@ export default function App() {
           <Route path="ekonomika" element={<RequirePerm perm="perm_costs_full"><Costs /></RequirePerm>} />
           <Route path="naklady" element={<Navigate to="/ekonomika" replace />} />
           <Route path="statistiky" element={<RequirePerm perm="perm_costs_full"><PricingStats /></RequirePerm>} />
+          <Route path="socialne-siete" element={<RequirePerm perm="perm_social"><SocialPostsPage /></RequirePerm>} />
+          <Route path="socialne-siete/:id" element={<RequirePerm perm="perm_social"><SocialPostDetail /></RequirePerm>} />
           <Route path="zamestnanci" element={<RequirePerm perm="perm_employees"><Employees /></RequirePerm>} />
           <Route path="administracia" element={<RequirePerm perm="perm_admin"><Admin /></RequirePerm>} />
           <Route path="*" element={<div className="page"><h1>Stránka neexistuje</h1></div>} />
