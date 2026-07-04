@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { apiCall } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox, StatusBadge } from '../../components/ui'
@@ -158,6 +158,7 @@ function DealModal({ customerId, deal, onClose, onSaved }) {
 
 export default function CustomerDetail() {
   const { id } = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const toast = useToast()
   const { can } = useAuth()
   const isAdmin = can('perm_admin')
@@ -178,6 +179,20 @@ export default function CustomerDetail() {
   }
 
   useEffect(() => { load() }, [id])
+
+  useEffect(() => {
+    const dealId = searchParams.get('deal')
+    if (dealId) setViewDealId(dealId)
+  }, [searchParams])
+
+  const closeDealModal = () => {
+    setViewDealId(null)
+    if (searchParams.get('deal')) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('deal')
+      setSearchParams(next, { replace: true })
+    }
+  }
 
   const completeTask = async (taskId) => {
     try {
@@ -546,7 +561,7 @@ export default function CustomerDetail() {
       {viewDealId && (
         <DealDetailModal
           dealId={viewDealId}
-          onClose={() => setViewDealId(null)}
+          onClose={closeDealModal}
           onUpdated={load}
         />
       )}

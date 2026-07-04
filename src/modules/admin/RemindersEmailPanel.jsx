@@ -14,6 +14,7 @@ export default function RemindersEmailPanel() {
   })
   const [saved, setSaved] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [sending, setSending] = useState(false)
 
   const load = async () => {
     setState({ loading: true, error: null })
@@ -44,6 +45,24 @@ export default function RemindersEmailPanel() {
       toast('Nepodarilo sa uložiť: ' + e.message, 'err')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const sendNow = async () => {
+    setSending(true)
+    try {
+      const res = await apiCall('resendOperationalAlertsEmail')
+      if (res.sent) {
+        toast('E-mail odoslaný (' + res.count + ' pripomienok) → ' + (res.to || ''))
+      } else if (res.reason === 'empty') {
+        toast('Žiadne pripomienky — e-mail sa neposielal', 'err')
+      } else {
+        toast('E-mail sa neodoslal: ' + (res.reason || 'neznáma chyba'), 'err')
+      }
+    } catch (e) {
+      toast('Nepodarilo sa odoslať: ' + e.message, 'err')
+    } finally {
+      setSending(false)
     }
   }
 
@@ -95,9 +114,14 @@ export default function RemindersEmailPanel() {
                 </label>
               </div>
 
-              <button className="btn" style={{ marginTop: 12 }} onClick={save} disabled={saving || !changed}>
-                {saving ? 'Ukladá sa…' : 'Uložiť nastavenia'}
-              </button>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+                <button className="btn" onClick={save} disabled={saving || !changed}>
+                  {saving ? 'Ukladá sa…' : 'Uložiť nastavenia'}
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={sendNow} disabled={sending || state.loading}>
+                  {sending ? 'Odosiela sa…' : 'Odoslať e-mail teraz'}
+                </button>
+              </div>
             </>
           )}
     </div>
