@@ -49,7 +49,22 @@ src/
 
 | Modul | Čo robí |
 |---|---|
-| Zákazníci / CRM | pipeline dopytov, ponuky, reklamácie, obrat z úhrad |
-| Projekty | stavy, náklady, faktúry, **úhrady od zákazníka**, odovzdanie |
+| Zákazníci / CRM | pipeline dopytov, ponuky, Ateliér (vizualizácie), reklamácie, obrat z úhrad |
+| Projekty | stavy, náklady, faktúry, **úhrady od zákazníka**, odovzdanie, súbory na Drive |
 | Faktúry | prijaté + vydané; u vydaných **+ Úhrada** / Uhradiť zvyšok |
-| Administrácia | používatelia, firemné údaje faktúr, záloha DB, dielenské chyby |
+| Ekonomika | cash-flow mesiac po mesiaci; karty príjmy/výdavky + tabuľka úhrad projektov |
+| Administrácia | používatelia, firemné údaje faktúr, **denný e-mail pripomienok**, záloha DB, dielenské chyby |
+
+### Ekonomika (`/ekonomika`)
+
+Vyžaduje `perm_costs_full`. Zobrazuje mesačný cash-flow (bez DPH) a štyri tabuľky výdavkov (fixné, jednorazové, mzdy, prijaté FA). Nad výdavkami tabuľka **Príjmy — úhrady projektov** — projekty, ktoré mali v danom mesiaci úhradu; stĺpec „Zostáva uhradiť (aktuálne)“ ukazuje dnešný zostatok, nie stav ku koncu minulého mesiaca.
+
+### Drive linky v appke
+
+PDF ponúk, vizualizácie a súbory projektu sa otvárajú priamo na Google Drive. Kolega potrebuje príslušné právo v manageri (`perm_customers`, `perm_files`, …) — **nemusí** mať prístup na celý Shared Drive. Po nasadení backendu @60+ spustiť batch migráciu v GAS editore (návod v `woodworking-manager-gas/README.md`).
+
+### Administrácia — denný e-mail pripomienok
+
+Sekcia **Denný e-mail s pripomienkami** (`perm_admin`): zapnutie/vypnutie, prahy (dni pred štartom / termín / neaktivita dopytu), tlačidlo **Odoslať e-mail teraz** (test alebo okamžitý súhrn). E-mail ide na `adminEmail` (rovnaká adresa ako problematické hodiny z dielne).
+
+Odkaz z e-mailu na dopyt otvorí kartu zákazníka s parametrom `?deal=` — detail dopytu sa zobrazí automaticky.
