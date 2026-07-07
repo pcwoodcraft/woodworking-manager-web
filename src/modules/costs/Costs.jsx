@@ -77,7 +77,7 @@ function CostForm({ kind, cost, month, onClose, onSaved }) {
   )
 }
 
-function MarkPaidModal({ title, item, onClose, onSave }) {
+function MarkPaidModal({ title, onClose, onSave }) {
   const [paidDate, setPaidDate] = useState(toIsoDate(new Date().toISOString()))
   const [saving, setSaving] = useState(false)
   const toast = useToast()
