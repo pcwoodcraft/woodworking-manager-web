@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { apiCall } from '../../api/client'
+import { loadBundle, section } from '../../api/bundle'
 import { cacheGet, cacheSet, invalidateProjectCaches } from '../../api/cache'
 import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox, StatusBadge } from '../../components/ui'
@@ -8,7 +8,7 @@ import ProjectForm from './ProjectForm'
 import { fmtMoney, fmtDate, fmtPercent, toIsoDate, PROJECT_STATUSES, normalizeStatus, isRunningStatus, budgetLevel, priorityLabel, sortProjectsForSchedule, projectPriceNet } from '../../utils/format'
 
 export default function Projects() {
-  const { can } = useAuth()
+  const { can, expectedSections, refreshBootstrap } = useAuth()
   const navigate = useNavigate()
   const canWrite = can('perm_projects_write')
   const [state, setState] = useState({ loading: true, error: null })
@@ -34,10 +34,20 @@ export default function Projects() {
       setState({ loading: true, error: null })
     }
     try {
-      const page = await apiCall('getProjectsPage')
-      cacheSet('projectsPage', page)
-      applyPage(page)
-      setState({ loading: false, error: null })
+      // Jeden request na obrazovku (V3) — sekcia projectsPage.
+      const bundle = await loadBundle('getProjectsBundle', {}, { expectedSections, refreshBootstrap })
+      const sec = section(bundle, 'projectsPage')
+      if (sec.ok) {
+        cacheSet('projectsPage', sec.data)
+        applyPage(sec.data)
+        setState({ loading: false, error: null })
+      } else if (sec.error) {
+        if (!hit) setState({ loading: false, error: new Error('Projekty sa nepodarilo načítať.') })
+      } else if (!hit) {
+        // denied — právo bolo medzičasom odobraté; obnovený bootstrap nechá RequirePerm obrazovku prekryť
+        applyPage({})
+        setState({ loading: false, error: null })
+      }
     } catch (e) {
       if (!hit) setState({ loading: false, error: e })
     }

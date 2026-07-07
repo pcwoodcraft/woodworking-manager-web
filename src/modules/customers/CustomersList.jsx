@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiCall } from '../../api/client'
+import { loadBundle, section } from '../../api/bundle'
+import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import { fmtDate, fmtMoney } from '../../utils/format'
@@ -10,6 +12,7 @@ import { customerStatusLabel, customerTypeLabel } from './crmConstants'
 export default function CustomersList() {
   const toast = useToast()
   const navigate = useNavigate()
+  const { expectedSections, refreshBootstrap } = useAuth()
   const [state, setState] = useState({ loading: true, error: null })
   const [customers, setCustomers] = useState([])
   const [search, setSearch] = useState('')
@@ -18,9 +21,19 @@ export default function CustomersList() {
   const load = async () => {
     setState({ loading: true, error: null })
     try {
-      const page = await apiCall('getCustomersListPage')
-      setCustomers(page.customers || [])
-      setState({ loading: false, error: null })
+      // Jeden request na obrazovku (V3) — sekcia customersList.
+      const bundle = await loadBundle('getCustomersBundle', {}, { expectedSections, refreshBootstrap })
+      const sec = section(bundle, 'customersList')
+      if (sec.ok) {
+        setCustomers(sec.data.customers || [])
+        setState({ loading: false, error: null })
+      } else if (sec.error) {
+        setState({ loading: false, error: new Error('Zákazníkov sa nepodarilo načítať.') })
+      } else {
+        // denied — právo bolo medzičasom odobraté; RequirePerm obrazovku prekryje
+        setCustomers([])
+        setState({ loading: false, error: null })
+      }
     } catch (e) {
       setState({ loading: false, error: e })
     }

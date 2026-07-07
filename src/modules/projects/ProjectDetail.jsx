@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { apiCall } from '../../api/client'
+import { loadBundle, section } from '../../api/bundle'
 import { cacheGet, cacheSet, invalidateProjectCaches } from '../../api/cache'
 import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox, StatusBadge } from '../../components/ui'
@@ -26,7 +27,7 @@ import ProjectEvaluationSection from './ProjectEvaluationSection'
 import {
   fmtMoney, fmtDate, fmtPercent, parseNum, toIsoDate,
   PROJECT_STATUSES, normalizeStatus, statusLabel, budgetLevel,
-  projectPriceNet, projectPriceGross,
+  projectPriceGross,
 } from '../../utils/format'
 
 const CONFIRM_STATUSES = {
@@ -210,7 +211,7 @@ function BudgetOverview({ summary, project }) {
 export default function ProjectDetail() {
   const { id } = useParams()
   const toast = useToast()
-  const { can } = useAuth()
+  const { can, expectedSections, refreshBootstrap } = useAuth()
   const canWrite = can('perm_projects_write')
   const canHours = can('perm_timesheets')
   const canInvoicesFull = can('perm_invoices_full')
@@ -257,10 +258,19 @@ export default function ProjectDetail() {
       setState({ loading: true, error: null })
     }
     try {
-      const page = await apiCall('getProjectDetailPage', { id })
-      cacheSet(cacheKey, page)
-      applyPage(page)
-      setState({ loading: false, error: null })
+      // Jeden request na obrazovku (V3) — sekcia projectDetail.
+      const bundle = await loadBundle('getProjectDetailBundle', { id }, { expectedSections, refreshBootstrap })
+      const sec = section(bundle, 'projectDetail')
+      if (sec.ok) {
+        cacheSet(cacheKey, sec.data)
+        applyPage(sec.data)
+        setState({ loading: false, error: null })
+      } else if (sec.error) {
+        if (!hit) setState({ loading: false, error: new Error('Detail projektu sa nepodarilo načítať.') })
+      } else if (!hit) {
+        // denied — právo bolo medzičasom odobraté; RequirePerm obrazovku prekryje
+        setState({ loading: false, error: null })
+      }
     } catch (e) {
       if (!hit) setState({ loading: false, error: e })
     }

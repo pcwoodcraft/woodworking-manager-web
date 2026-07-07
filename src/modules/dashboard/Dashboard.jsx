@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { apiCall } from '../../api/client'
+import { loadBundle, section } from '../../api/bundle'
 import { cacheGet, cacheSet } from '../../api/cache'
 import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox, StatusBadge } from '../../components/ui'
@@ -10,10 +10,11 @@ import {
 } from '../../utils/format'
 
 export default function Dashboard() {
-  const { can } = useAuth()
+  const { can, expectedSections, refreshBootstrap } = useAuth()
   const navigate = useNavigate()
   const [state, setState] = useState({ loading: true, error: null, data: null })
   const [crmSummary, setCrmSummary] = useState(null)
+  const [crmError, setCrmError] = useState(false)
 
   const showFinance = can('perm_invoices_full')
   const showProjects = can('perm_projects_read')
@@ -27,12 +28,18 @@ export default function Dashboard() {
     if (hit) applyData(hit)
     else setState({ loading: true, error: null, data: null })
     try {
-      const calls = [apiCall('getDashboardPage')]
-      if (showCrm) calls.push(apiCall('getCrmDashboardSummary'))
-      const [page, crm] = await Promise.all(calls)
-      cacheSet('dashboardPage', page)
-      applyData(page)
-      if (showCrm) setCrmSummary(crm)
+      // Jeden request na celú obrazovku (V3); sekcie: dashboard + crmSummary.
+      const bundle = await loadBundle('getDashboardBundle', {}, { expectedSections, refreshBootstrap })
+      const dash = section(bundle, 'dashboard')
+      const crm = section(bundle, 'crmSummary')
+      if (dash.ok) {
+        cacheSet('dashboardPage', dash.data)
+        applyData(dash.data)
+      } else if (!hit) {
+        setState({ loading: false, error: new Error('Prehľad sa nepodarilo načítať.'), data: null })
+      }
+      setCrmSummary(crm.ok ? crm.data : null) // denied -> null -> widget sa skryje
+      setCrmError(crm.error)
     } catch (e) {
       if (!hit) setState({ loading: false, error: e, data: null })
     }
@@ -85,6 +92,15 @@ export default function Dashboard() {
           </>
         )}
       </div>
+
+      {showCrm && crmError && (
+        <section className="card">
+          <div className="card-head">
+            <h2>CRM</h2>
+          </div>
+          <p className="muted">Sekciu CRM sa nepodarilo načítať — zvyšok prehľadu funguje. Skúste obnoviť stránku.</p>
+        </section>
+      )}
 
       {showCrm && crmSummary && (
         <section className="card">

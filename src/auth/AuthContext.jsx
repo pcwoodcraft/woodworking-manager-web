@@ -1,4 +1,7 @@
-// Prihlásenie cez Google Identity Services (GIS) + profil a práva z getMe.
+// Prihlásenie cez Google Identity Services (GIS) + profil a práva z getAppBootstrap.
+// Bootstrap (identita, práva, očakávané sekcie bundle akcií, globálne nastavenia)
+// sa volá raz pri štarte a drží sa v pamäti; refreshBootstrap() ho obnoví, keď
+// server vráti 'denied' na sekcii, ktorú bootstrap očakával ako povolenú.
 //
 // Token sa ukladá do localStorage a pred expiráciou sa ticho obnoví cez GIS.
 // Pri expirácii sa najprv skúsi One Tap, až potom prihlasovacie okno.
@@ -61,6 +64,7 @@ export function AuthProvider({ children }) {
   const [status, setStatus] = useState('loading')
   const [expired, setExpired] = useState(false)
   const [me, setMe] = useState(null)
+  const [bootstrap, setBootstrap] = useState(null)
   const [loginError, setLoginError] = useState('')
   const tokenRef = useRef(validToken())
 
@@ -81,8 +85,9 @@ export function AuthProvider({ children }) {
     persistToken(token)
     setLoginError('')
     try {
-      const profile = await apiCall('getMe')
-      setMe(profile)
+      const boot = await apiCall('getAppBootstrap')
+      setMe(boot.me)
+      setBootstrap(boot)
       setStatus('signedIn')
       setExpired(false)
     } catch (e) {
@@ -122,8 +127,8 @@ export function AuthProvider({ children }) {
       const saved = validToken()
       if (saved) {
         tokenRef.current = saved
-        apiCall('getMe')
-          .then((profile) => { if (!cancelled) { setMe(profile); setStatus('signedIn'); setExpired(false) } })
+        apiCall('getAppBootstrap')
+          .then((boot) => { if (!cancelled) { setMe(boot.me); setBootstrap(boot); setStatus('signedIn'); setExpired(false) } })
           .catch(() => {
             if (cancelled) return
             if (localStorage.getItem(SESSION_HINT_KEY)) promptRenewal()
@@ -165,7 +170,21 @@ export function AuthProvider({ children }) {
 
   const can = useCallback((perm) => !!me?.perms?.[perm], [me])
 
-  const value = { status, expired, me, can, signOut, gisReady, loginError }
+  // Obnova bootstrapu po 'denied' na očakávanej sekcii (viď api/bundle.js).
+  // Vráti čerstvé expectedSections, aby volajúci vedel rozhodnúť o refetchi.
+  const refreshBootstrap = useCallback(async () => {
+    const boot = await apiCall('getAppBootstrap')
+    setMe(boot.me)
+    setBootstrap(boot)
+    return boot.expectedSections || {}
+  }, [])
+
+  const value = {
+    status, expired, me, can, signOut, gisReady, loginError,
+    expectedSections: bootstrap?.expectedSections || null,
+    settings: bootstrap?.settings || null,
+    refreshBootstrap,
+  }
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
