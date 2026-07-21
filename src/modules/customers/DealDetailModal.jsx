@@ -302,8 +302,10 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
 
       <div className="card" style={{ marginTop: 20 }}>
         <h3 style={{ marginBottom: 8 }}>Poznámka k dopytu</h3>
-        <textarea rows={3} value={notes} onChange={e => setNotes(e.target.value)} disabled={saving}
-          placeholder="Aktuálny interný kontext dopytu" />
+        <label className="field" style={{ width: '100%' }}>
+          <textarea rows={7} value={notes} onChange={e => setNotes(e.target.value)} disabled={saving}
+            placeholder="Aktuálny interný kontext dopytu" style={{ width: '100%', minHeight: 150, resize: 'vertical' }} />
+        </label>
         <div className="btn-group" style={{ marginTop: 8 }}>
           <button className="btn btn-sm" onClick={saveNotes} disabled={saving}>Uložiť poznámku</button>
           <button className="btn btn-sm btn-secondary" onClick={() => setNotes('')} disabled={saving || !notes}>Vymazať</button>
@@ -508,7 +510,6 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
           {deal.nextActionDate && <>Ďalšia akcia: {fmtDate(deal.nextActionDate)}</>}
         </p>
       )}
-      {deal.notes && <p className="prewrap muted" style={{ marginTop: 8 }}>{deal.notes}</p>}
     </Modal>
   )
 }
