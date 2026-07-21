@@ -5,8 +5,9 @@ import { Spinner, ErrorBox } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import { fmtMoney, parseNum } from '../../utils/format'
 import { KANBAN_COLUMNS, STALE_DAYS, isDealOpen, dealKanbanColumn, isProductionDealPhase } from './crmConstants'
-import LostReasonModal from './LostReasonModal'
 import DealDetailModal from './DealDetailModal'
+import DealMoveModal from './DealMoveModal'
+import { LOST_REASONS } from './crmConstants'
 
 function dealColumn(deal) {
   return dealKanbanColumn(deal)
@@ -50,7 +51,8 @@ export default function Pipeline() {
   const [state, setState] = useState({ loading: true, error: null })
   const [deals, setDeals] = useState([])
   const [dragId, setDragId] = useState(null)
-  const [pendingLost, setPendingLost] = useState(null)
+  const [pendingMove, setPendingMove] = useState(null)
+  const [lost, setLost] = useState({ lostReason: '', lostReasonOther: '' })
   const [editDeal, setEditDeal] = useState(null)
   const [moving, setMoving] = useState(false)
 
@@ -90,7 +92,7 @@ export default function Pipeline() {
     e.dataTransfer.effectAllowed = 'move'
   }
 
-  const applyMove = async (dealId, col, lost) => {
+  const applyMove = async (dealId, col, activity) => {
     setMoving(true)
     try {
       let payload = { id: dealId }
@@ -103,10 +105,13 @@ export default function Pipeline() {
       } else {
         payload.phase = col.value
       }
+      payload.activity = activity
+      payload.operationId = crypto.randomUUID()
+      payload.source = 'manual_pipeline'
       const res = await apiCall('moveDealPhase', payload)
       if (res.warning) toast(res.warning)
       toast('Dopyt presunutý')
-      setPendingLost(null)
+      setPendingMove(null)
       if (res.deal) {
         setDeals(prev => prev.map(d => String(d.id) === String(dealId) ? res.deal : d))
       } else {
@@ -129,11 +134,8 @@ export default function Pipeline() {
     }
     const dealId = dragId || e.dataTransfer.getData('text/plain')
     if (!dealId) return
-    if (col.kind === 'status' && col.value === 'prehrate') {
-      setPendingLost({ dealId, col })
-      return
-    }
-    applyMove(dealId, col, null)
+    setLost({ lostReason: '', lostReasonOther: '' })
+    setPendingMove({ dealId, col })
   }
 
   if (state.loading) return <Spinner />
@@ -203,12 +205,17 @@ export default function Pipeline() {
         })}
       </div>
 
-      {pendingLost && (
-        <LostReasonModal
-          saving={moving}
-          onClose={() => { setPendingLost(null); setDragId(null) }}
-          onConfirm={lost => applyMove(pendingLost.dealId, pendingLost.col, lost)}
-        />
+      {pendingMove && (
+        <DealMoveModal saving={moving} onClose={() => { setPendingMove(null); setDragId(null) }}
+          confirmDisabled={pendingMove.col.kind === 'status' && pendingMove.col.value === 'prehrate' && (!lost.lostReason || (lost.lostReason === 'ine' && !lost.lostReasonOther.trim()))}
+          onConfirm={activity => applyMove(pendingMove.dealId, pendingMove.col, activity)}>
+          {pendingMove.col.kind === 'status' && pendingMove.col.value === 'prehrate' && <>
+            <label className="field"><span>Dôvod prehry</span><select value={lost.lostReason} onChange={e => setLost({...lost,lostReason:e.target.value})}>
+              <option value="">Vyberte dôvod</option>{LOST_REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select></label>
+            {lost.lostReason === 'ine' && <label className="field"><span>Upresnenie</span><input value={lost.lostReasonOther} onChange={e => setLost({...lost,lostReasonOther:e.target.value})} /></label>}
+          </>}
+        </DealMoveModal>
       )}
 
       {editDeal && (

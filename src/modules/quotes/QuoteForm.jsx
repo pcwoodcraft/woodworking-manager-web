@@ -26,6 +26,7 @@ export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, o
   const [deals, setDeals] = useState([])
   const [previewNumber, setPreviewNumber] = useState('')
   const [frozen, setFrozen] = useState(false)
+  const copyFromId = !isEdit ? searchParams.get('copyFrom') : ''
 
   const [f, setF] = useState({
     customerId: initialCustomerId || searchParams.get('customerId') || '',
@@ -106,6 +107,39 @@ export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, o
       .catch(e => toast(e.message, 'err'))
       .finally(() => setLoading(false))
   }, [quoteId, isEdit]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!copyFromId) return
+    setLoading(true)
+    apiCall('getQuote', { id: copyFromId })
+      .then(data => {
+        const q = data.quote
+        setF(prev => ({
+          ...prev,
+          customerId: q.customerId,
+          leadId: q.leadId || '',
+          projectName: q.projectName || '',
+          issueDate: toIsoDate(new Date().toISOString()),
+          validityDays: q.validityDays || '30',
+          language: q.language || 'SK',
+          taxMode: q.taxMode || 'VAT_SK',
+          taxLegalNote: q.taxLegalNote || '',
+          status: 'koncept',
+          paymentTerms: q.paymentTerms || '',
+          termsTemplate: q.termsTemplate || 'kratka',
+          termsBody: q.termsBody || '',
+          notes: q.notes || '',
+          items: (data.items || []).length ? data.items.map(it => ({
+            descPrimary: it.descPrimary || '', descSecondary: it.descSecondary || '',
+            descDetail: it.descDetail || '', quantity: it.quantity || '', unit: it.unit || 'ks',
+            unitPriceNet: it.unitPriceNet || '', linePriceNet: it.linePriceNet || '',
+          })) : [emptyQuoteItem()],
+        }))
+        toast('Variant bol predvyplnený. Nové číslo dostane až pri uložení.')
+      })
+      .catch(e => toast(e.message, 'err'))
+      .finally(() => setLoading(false))
+  }, [copyFromId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (isEdit) return

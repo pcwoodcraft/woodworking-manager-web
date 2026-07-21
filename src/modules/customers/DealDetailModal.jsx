@@ -13,6 +13,8 @@ import {
 import { quoteStatusLabel } from '../quotes/quoteConstants'
 import SalesOwnerSelect from './SalesOwnerSelect'
 import ProjectEvaluationSection from '../projects/ProjectEvaluationSection'
+import { fileToBase64, newClientFileId } from '../../utils/files'
+import DealMoveModal from './DealMoveModal'
 
 export default function DealDetailModal({ dealId, onClose, onUpdated }) {
   const toast = useToast()
@@ -23,17 +25,25 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [data, setData] = useState(null)
-  const [phaseForm, setPhaseForm] = useState({ phase: 'novy_dopyt', lostReason: 'cena', lostReasonOther: '', ownerEmail: '', estimatedValue: '' })
+  const [phaseForm, setPhaseForm] = useState({ phase: 'novy_dopyt', lostReason: '', lostReasonOther: '', ownerEmail: '', estimatedValue: '' })
   const [quoteForm, setQuoteForm] = useState({ title: '', link: '', status: 'koncept' })
+  const [notes, setNotes] = useState('')
+  const [files, setFiles] = useState([])
+  const [moveIntent, setMoveIntent] = useState(null)
 
   const load = async () => {
     setLoading(true)
     try {
-      const page = await apiCall('getDealDetail', { id: dealId, staleDays: STALE_DAYS })
+      const [page, dealFiles] = await Promise.all([
+        apiCall('getDealDetail', { id: dealId, staleDays: STALE_DAYS }),
+        apiCall('getDealFiles', { dealId }),
+      ])
       setData(page)
+      setFiles(dealFiles || [])
+      setNotes(page.deal.notes || '')
       setPhaseForm({
         phase: page.deal.phase || 'novy_dopyt',
-        lostReason: page.deal.lostReason || 'cena',
+        lostReason: page.deal.lostReason || '',
         lostReasonOther: page.deal.lostReasonOther || '',
         ownerEmail: page.deal.ownerEmail || '',
         estimatedValue: page.deal.estimatedValue ?? '',
@@ -53,19 +63,7 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
     onUpdated?.()
   }
 
-  const movePhase = async () => {
-    setSaving(true)
-    try {
-      const res = await apiCall('moveDealPhase', { id: dealId, phase: phaseForm.phase })
-      if (res.warning) toast(res.warning)
-      toast('Fáza uložená')
-      await refresh()
-    } catch (e) {
-      toast(e.message, 'err')
-    } finally {
-      setSaving(false)
-    }
-  }
+  const movePhase = () => setMoveIntent('phase')
 
   const saveOwner = async () => {
     setSaving(true)
@@ -94,21 +92,63 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
   }
 
   const markLost = async () => {
+    setMoveIntent('lost')
+  }
+
+  const confirmMove = async (activity) => {
     setSaving(true)
     try {
-      await apiCall('moveDealPhase', {
-        id: dealId,
-        status: 'prehrate',
-        lostReason: phaseForm.lostReason,
-        lostReasonOther: phaseForm.lostReasonOther,
-      })
-      toast('Dopyt označený ako prehraný')
+      const change = moveIntent === 'lost'
+        ? { status: 'prehrate', lostReason: phaseForm.lostReason, lostReasonOther: phaseForm.lostReasonOther }
+        : { phase: phaseForm.phase }
+      const res = await apiCall('moveDealPhase', { id: dealId, ...change, activity,
+        operationId: crypto.randomUUID(), source: 'manual_detail' })
+      if (res.warning) toast(res.warning)
+      toast(moveIntent === 'lost' ? 'Dopyt označený ako prehraný' : 'Fáza uložená')
+      setMoveIntent(null)
       await refresh()
     } catch (e) {
       toast(e.message, 'err')
     } finally {
       setSaving(false)
     }
+  }
+
+  const saveNotes = async () => {
+    setSaving(true)
+    try {
+      await apiCall('updateDeal', { deal: { id: dealId, notes } })
+      toast(notes.trim() ? 'Poznámka uložená' : 'Poznámka vymazaná')
+      await refresh()
+    } catch (e) {
+      toast(e.message, 'err')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const uploadFiles = async (selected) => {
+    if (!selected.length) return
+    setSaving(true)
+    const failed = []
+    for (const file of selected) {
+      try {
+        await apiCall('uploadDealFile', { dealId, clientFileId: newClientFileId(), fileName: file.name,
+          mimeType: file.type, base64: await fileToBase64(file) })
+      } catch { failed.push(file.name) }
+    }
+    if (failed.length) toast('Nepodarilo sa nahrať: ' + failed.join(', '), 'err')
+    else toast('Prílohy nahrané')
+    await refresh()
+    setSaving(false)
+  }
+
+  const deleteFile = async (id) => {
+    if (!window.confirm('Odstrániť prílohu zo systému? Súbor na Drive zostane zachovaný.')) return
+    setSaving(true)
+    try { await apiCall('deleteDealFile', { id }); await refresh(); toast('Príloha odstránená zo zoznamu') }
+    catch (e) { toast(e.message, 'err') }
+    finally { setSaving(false) }
   }
 
   const convertToProject = async () => {
@@ -260,6 +300,39 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
         </label>
       </div>
 
+      <div className="card" style={{ marginTop: 20 }}>
+        <h3 style={{ marginBottom: 8 }}>Poznámka k dopytu</h3>
+        <textarea rows={3} value={notes} onChange={e => setNotes(e.target.value)} disabled={saving}
+          placeholder="Aktuálny interný kontext dopytu" />
+        <div className="btn-group" style={{ marginTop: 8 }}>
+          <button className="btn btn-sm" onClick={saveNotes} disabled={saving}>Uložiť poznámku</button>
+          <button className="btn btn-sm btn-secondary" onClick={() => setNotes('')} disabled={saving || !notes}>Vymazať</button>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 20 }}>
+        <h3 style={{ marginBottom: 8 }}>Prílohy</h3>
+        <input type="file" multiple accept="image/*,.pdf,.dwg,.dxf" disabled={saving}
+          onChange={e => uploadFiles(Array.from(e.target.files || []))} />
+        {files.length === 0 ? <p className="muted" style={{ marginTop: 8 }}>Bez príloh.</p> : (
+          <table className="table" style={{ marginTop: 8 }}><tbody>{files.map(file => <tr key={file.id}>
+            <td><a href={file.driveUrl} target="_blank" rel="noreferrer">{file.fileName}</a></td>
+            <td className="num">{file.sizeBytes ? Math.ceil(Number(file.sizeBytes) / 1024) + ' kB' : '—'}</td>
+            <td className="row-action"><button className="btn btn-sm btn-secondary" onClick={() => deleteFile(file.id)} disabled={saving}>Odstrániť</button></td>
+          </tr>)}</tbody></table>
+        )}
+      </div>
+
+      {moveIntent && <DealMoveModal saving={saving} onClose={() => setMoveIntent(null)} onConfirm={confirmMove}
+        confirmDisabled={moveIntent === 'lost' && (!phaseForm.lostReason || (phaseForm.lostReason === 'ine' && !phaseForm.lostReasonOther.trim()))}>
+        {moveIntent === 'lost' && <>
+          <label className="field"><span>Dôvod prehry</span><select value={phaseForm.lostReason} onChange={e => setPhaseForm({...phaseForm,lostReason:e.target.value})}>
+            <option value="">Vyberte dôvod</option>{LOST_REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+          </select></label>
+          {phaseForm.lostReason === 'ine' && <label className="field"><span>Upresnenie</span><input value={phaseForm.lostReasonOther} onChange={e => setPhaseForm({...phaseForm,lostReasonOther:e.target.value})} /></label>}
+        </>}
+      </DealMoveModal>}
+
       <div className="btn-group" style={{ marginTop: 12, flexWrap: 'wrap' }}>
         <button className="btn btn-sm" onClick={movePhase} disabled={saving}>Uložiť fázu</button>
         <button className="btn btn-sm btn-secondary" onClick={saveOwner} disabled={saving}>Uložiť obchodníka</button>
@@ -274,6 +347,7 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
         <div className="form-grid" style={{ marginTop: 14 }}>
           <label className="field span-2"><span>Dôvod prehry</span>
             <select value={phaseForm.lostReason} onChange={e => setPhaseForm({ ...phaseForm, lostReason: e.target.value })}>
+              <option value="">Vyberte dôvod</option>
               {LOST_REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
           </label>
@@ -376,6 +450,10 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
                     {q.isExpired && <span className="kanban-stale-badge">Expirovaná</span>}
                     {q.pdfStale && <span className="kanban-stale-badge" style={{ marginLeft: q.isExpired ? 6 : 0 }}>PDF neaktuálne</span>}
                     {!q.isExpired && !q.pdfStale && '—'}
+                    <button type="button" className="btn btn-sm btn-secondary" style={{ marginLeft: 8 }}
+                      onClick={e => { e.stopPropagation(); navigate('/zakaznici/ponuky/nova?copyFrom=' + encodeURIComponent(q.id)) }}>
+                      Vytvoriť variant
+                    </button>
                   </td>
                 </tr>
               ))}

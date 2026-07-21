@@ -6,6 +6,7 @@ import { Spinner, ErrorBox } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import { DEAL_SOURCES, PRODUCT_TYPES, customerDisplayName } from './crmConstants'
 import SalesOwnerSelect from './SalesOwnerSelect'
+import { fileToBase64, newClientFileId } from '../../utils/files'
 
 export default function QuickDealForm() {
   const toast = useToast()
@@ -21,6 +22,7 @@ export default function QuickDealForm() {
     firstName: '', lastName: '', company: '', phone: '', email: '', customerType: 'sukromna',
   })
   const [contact, setContact] = useState({ name: '', phone: '', email: '', role: '' })
+  const [files, setFiles] = useState([])
   const [deal, setDeal] = useState({
     title: '', productType: '', source: 'telefon', estimatedValue: '', notes: '', ownerEmail: me?.email || '',
   })
@@ -67,7 +69,14 @@ export default function QuickDealForm() {
       }
       if (contact.name.trim()) payload.contact = contact
       const res = await apiCall('addQuickDeal', payload)
-      toast('Dopyt vytvorený')
+      const failed = []
+      for (const file of files) {
+        try {
+          await apiCall('uploadDealFile', { dealId: res.dealId, clientFileId: newClientFileId(),
+            fileName: file.name, mimeType: file.type, base64: await fileToBase64(file) })
+        } catch { failed.push(file.name) }
+      }
+      toast(failed.length ? 'Dopyt vytvorený, nepodarilo sa nahrať: ' + failed.join(', ') : 'Dopyt vytvorený')
       navigate('/zakaznici/' + res.customerId)
     } catch (e) {
       toast('Nepodarilo sa uložiť: ' + e.message, 'err')
@@ -148,6 +157,10 @@ export default function QuickDealForm() {
           </label>
           <label className="field span-2"><span>Poznámka</span>
             <textarea rows={2} value={deal.notes} onChange={e => setDeal({ ...deal, notes: e.target.value })} />
+          </label>
+          <label className="field span-2"><span>Prílohy</span>
+            <input type="file" multiple accept="image/*,.pdf,.dwg,.dxf" onChange={e => setFiles(Array.from(e.target.files || []))} />
+            {files.length > 0 && <small className="muted">Vybrané súbory: {files.map(f => f.name).join(', ')}</small>}
           </label>
 
           <div className="span-2" style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
