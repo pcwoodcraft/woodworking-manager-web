@@ -27,7 +27,12 @@ export function fmtMoney(v) {
 }
 
 export function parseNum(v) {
-  const n = typeof v === 'number' ? v : parseFloat(String(v ?? '').replace(',', '.'))
+  if (typeof v === 'number') return isNaN(v) ? 0 : v
+  // WEB-01 (audit 2607): slovenský zápis — medzery ako oddeľovač tisícov, čiarka ako desatinná.
+  // Pôvodná verzia riešila len PRVÚ čiarku a na medzere sa parseFloat zastavil, takže "1 877,00"
+  // vrátilo 1 — a web ukázal 1,00 € namiesto 1 877,00 €. Zrkadlí backend parseMoneySk.
+  const s = String(v ?? '').trim().replace(/\s/g, '').replace(/,/g, '.')
+  const n = parseFloat(s)
   return isNaN(n) ? 0 : n
 }
 
