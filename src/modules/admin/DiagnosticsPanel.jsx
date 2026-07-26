@@ -13,7 +13,10 @@ export default function DiagnosticsPanel() {
   const runServer = async () => {
     setBusy(true)
     try {
-      setServer(await apiCall('getSystemDiagnostics'))
+      // API-01 (audit 2607): getSystemDiagnostics meralo listy Google Sheets a po migrácii na
+      // Supabase v edge API neexistuje. getPerfBenchmark je jeho zmysluplný nástupca (benchmark
+      // kľúčových DB čítaní) → { generatedAt, timings:[{action,ms,ok}] }.
+      setServer(await apiCall('getPerfBenchmark'))
       refreshClient()
       toast('Diagnostika dokončená')
     } catch (e) {
@@ -56,8 +59,8 @@ export default function DiagnosticsPanel() {
         </div>
       </div>
       <p className="muted" style={{ marginBottom: 12 }}>
-        Klient automaticky meria trvanie API volaní v tejto relácii. Server diagnostika premeria listy v tabuľke
-        a benchmark kľúčových akcií (môže trvať 10–30 s).
+        Klient automaticky meria trvanie API volaní v tejto relácii. Server diagnostika premeria
+        benchmark kľúčových DB čítaní (môže trvať 10–30 s).
       </p>
 
       {summary && summary.length > 0 && (
@@ -81,56 +84,12 @@ export default function DiagnosticsPanel() {
 
       {server && (
         <>
-          <p className="muted" style={{ marginBottom: 8 }}>
-            Server: {server.generatedAt} · otvorenie tabuľky {server.spreadsheetOpenMs} ms · celkom {server.totalMs} ms
-          </p>
-          {server.recommendations?.length > 0 && (
-            <ul style={{ marginBottom: 16, paddingLeft: 20 }}>
-              {server.recommendations.map((r, i) => <li key={i} style={{ marginBottom: 6 }}>{r}</li>)}
-            </ul>
-          )}
-          {server.evaluationDataQuality && !server.evaluationDataQuality.error && (
-            <>
-              <h3 style={{ fontSize: 14, marginBottom: 8 }}>Kvalita dát pre vyhodnotenie (F5)</h3>
-              <p className="muted" style={{ marginBottom: 8 }}>
-                Eligible projektov (odovzdané, plne uhradené): {server.evaluationDataQuality.eligibleCount}
-                {' · '}odhad hodín {server.evaluationDataQuality.estimatedHours.percent}%
-                {' · '}odhad materiálu {server.evaluationDataQuality.estimatedMaterialCosts.percent}%
-                {' · '}typ produktu {server.evaluationDataQuality.productType.percent}%
-                {server.evaluationDataQuality.productType.breakdownReady ? ' (breakdown OK)' : ' (breakdown skrytý)'}
-              </p>
-            </>
-          )}
-          <h3 style={{ fontSize: 14, marginBottom: 8 }}>Listy v tabuľke (zoradené podľa času čítania)</h3>
-          <table className="table" style={{ marginBottom: 16 }}>
-            <thead>
-              <tr>
-                <th>List</th>
-                <th>Riadky dát</th>
-                <th>lastRow</th>
-                <th>getDataRange riadkov</th>
-                <th>Čítanie ms</th>
-                <th>Problém</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(server.sheets || []).filter(s => s.exists).map(s => (
-                <tr key={s.name}>
-                  <td>{s.name}</td>
-                  <td>{s.dataRows}</td>
-                  <td>{s.lastRow}</td>
-                  <td className={s.bloated ? 'overdue' : ''}>{s.getDataRangeRows || '—'}</td>
-                  <td className={s.readMs >= 500 ? 'overdue' : ''}>{s.readMs}</td>
-                  <td>{s.bloated ? '⚠ nafúknutý rozsah' : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <h3 style={{ fontSize: 14, marginBottom: 8 }}>Benchmark akcií na serveri</h3>
+          <p className="muted" style={{ marginBottom: 8 }}>Server benchmark: {server.generatedAt}</p>
+          <h3 style={{ fontSize: 14, marginBottom: 8 }}>Benchmark kľúčových DB čítaní na serveri</h3>
           <table className="table">
             <thead><tr><th>Akcia</th><th>ms</th></tr></thead>
             <tbody>
-              {(server.actionTimings || []).map(a => (
+              {(server.timings || []).map(a => (
                 <tr key={a.action}>
                   <td>{a.action}</td>
                   <td className={a.ms >= 2000 ? 'overdue' : ''}>{a.ms}{a.ok === false ? ' (chyba)' : ''}</td>
