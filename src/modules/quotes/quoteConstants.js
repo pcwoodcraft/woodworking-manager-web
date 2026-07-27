@@ -42,6 +42,7 @@ export const emptyQuoteItem = () => ({
   descPrimary: '',
   descSecondary: '',
   descDetail: '',
+  descDetailSecondary: '',
   quantity: '',
   unit: 'ks',
   unitPriceNet: '',

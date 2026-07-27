@@ -159,6 +159,8 @@ export default function QuoteDetail() {
                 <td>
                   <strong>{it.descPrimary}</strong>
                   {it.descSecondary && <div className="muted">{it.descSecondary}</div>}
+                  {it.descDetail && <div className="muted" style={{ whiteSpace: 'pre-line', fontSize: '0.9em' }}>{it.descDetail}</div>}
+                  {it.descDetailSecondary && <div className="muted" style={{ whiteSpace: 'pre-line', fontSize: '0.9em' }}>{it.descDetailSecondary}</div>}
                 </td>
                 <td className="num">{fmtMoney(it.lineNet)}</td>
                 <td className="num">{fmtMoney(it.lineVat)}</td>

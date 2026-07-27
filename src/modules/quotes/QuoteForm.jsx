@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { apiCall } from '../../api/client'
 import { useToast } from '../../components/Toast'
@@ -26,6 +26,12 @@ export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, o
   const [deals, setDeals] = useState([])
   const [previewNumber, setPreviewNumber] = useState('')
   const [frozen, setFrozen] = useState(false)
+  // Dvojjazyčné podmienky: default text šablóny pre aktuálny jazyk (načítané zo servera).
+  const [termsDefaults, setTermsDefaults] = useState({ kratka: '', plna: '' })
+  // Prebiehajúce auto-preklady polí položiek — kľúč `${idx}:${dstKey}`.
+  const [translating, setTranslating] = useState({})
+  // true, kým sa text podmienok zhoduje so systémovou šablónou (bezpečné automaticky prepísať).
+  const termsPristineRef = useRef(true)
   const copyFromId = !isEdit ? searchParams.get('copyFrom') : ''
 
   const [f, setF] = useState({
@@ -77,6 +83,8 @@ export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, o
       .then(data => {
         const q = data.quote
         setFrozen(!!q.isFrozen)
+        // Načítaný text podmienok je vlastný obsah — chránime ho pred auto-prepísaním šablónou.
+        termsPristineRef.current = false
         setF({
           customerId: q.customerId,
           leadId: q.leadId || '',
@@ -96,6 +104,7 @@ export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, o
               descPrimary: it.descPrimary || '',
               descSecondary: it.descSecondary || '',
               descDetail: it.descDetail || '',
+              descDetailSecondary: it.descDetailSecondary || '',
               quantity: it.quantity || '',
               unit: it.unit || 'ks',
               unitPriceNet: it.unitPriceNet || '',
@@ -114,6 +123,8 @@ export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, o
     apiCall('getQuote', { id: copyFromId })
       .then(data => {
         const q = data.quote
+        // Kopírovaný text podmienok je vlastný obsah — chránime ho pred auto-prepísaním šablónou.
+        termsPristineRef.current = false
         setF(prev => ({
           ...prev,
           customerId: q.customerId,
@@ -131,7 +142,8 @@ export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, o
           notes: q.notes || '',
           items: (data.items || []).length ? data.items.map(it => ({
             descPrimary: it.descPrimary || '', descSecondary: it.descSecondary || '',
-            descDetail: it.descDetail || '', quantity: it.quantity || '', unit: it.unit || 'ks',
+            descDetail: it.descDetail || '', descDetailSecondary: it.descDetailSecondary || '',
+            quantity: it.quantity || '', unit: it.unit || 'ks',
             unitPriceNet: it.unitPriceNet || '', linePriceNet: it.linePriceNet || '',
           })) : [emptyQuoteItem()],
         }))
@@ -141,16 +153,22 @@ export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, o
       .finally(() => setLoading(false))
   }, [copyFromId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Načíta default podmienky pre aktuálny jazyk + platnosť. Do poľa termsBody ich vloží len pri
+  // novej ponuke a len ak text ešte nebol ručne upravený (pristine) — inak by prepísal úpravy.
   useEffect(() => {
-    if (isEdit) return
-    apiCall('getQuoteDefaults', { validityDays: f.validityDays })
-      .then(d => setF(prev => ({
-        ...prev,
-        termsBody: prev.termsBody || d.quoteTermsKratka || '',
-        paymentTerms: prev.paymentTerms || d.quotePaymentTermsDefault || '',
-      })))
+    apiCall('getQuoteDefaults', { validityDays: f.validityDays, language: f.language })
+      .then(d => {
+        const defaults = { kratka: d.quoteTermsKratka || '', plna: d.quoteTermsPlna || '' }
+        setTermsDefaults(defaults)
+        if (isEdit) return
+        setF(prev => {
+          const patch = { ...prev, paymentTerms: prev.paymentTerms || d.quotePaymentTermsDefault || '' }
+          if (termsPristineRef.current) patch.termsBody = defaults[prev.termsTemplate] ?? ''
+          return patch
+        })
+      })
       .catch(() => {})
-  }, [isEdit]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isEdit, f.language, f.validityDays])
 
   useEffect(() => {
     if (!f.customerId || isEdit) return
@@ -166,10 +184,10 @@ export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, o
   const selectedCustomer = customers.find(c => c.id === f.customerId)
   const reverseHint = isForeignVatCustomer(selectedCustomer)
 
-  const setItem = (idx, k, val) => {
-    const items = f.items.map((it, i) => (i === idx ? { ...it, [k]: val } : it))
-    setF({ ...f, items })
-  }
+  const setItem = (idx, k, val) => setF(prev => ({
+    ...prev,
+    items: prev.items.map((it, i) => (i === idx ? { ...it, [k]: val } : it)),
+  }))
 
   const lineNet = (it) => {
     const line = parseNum(it.linePriceNet)
@@ -190,19 +208,43 @@ export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, o
     ? subtotalNet
     : Math.round(subtotalNet * (1 + vatRate / 100) * 100) / 100
 
-  const translateItem = async (idx) => {
-    const lang = translateTargetLang(f.language)
-    if (!lang) { toast('Preklad je dostupný pri jazyku SK+DE alebo SK+EN', 'err'); return }
-    const text = f.items[idx].descPrimary
-    if (!text.trim()) { toast('Vyplňte slovenský popis', 'err'); return }
+  const targetLang = translateTargetLang(f.language)
+
+  // Jadro prekladu jedného poľa položky: srcKey (SK) → dstKey (cudzí jazyk). Nastaví indikátor.
+  const runTranslate = async (idx, srcKey, dstKey) => {
+    const text = String(f.items[idx]?.[srcKey] || '').trim()
+    if (!text || !targetLang) return
+    const key = idx + ':' + dstKey
+    setTranslating(prev => ({ ...prev, [key]: true }))
     try {
-      const res = await apiCall('translateText', { text, targetLang: lang })
+      const res = await apiCall('translateText', { text, targetLang })
       const t = res.translations?.[0] || res.raw || ''
-      setItem(idx, 'descSecondary', t)
+      if (t) setItem(idx, dstKey, t)
+      return t
+    } finally {
+      setTranslating(prev => { const n = { ...prev }; delete n[key]; return n })
+    }
+  }
+
+  // Manuálny preklad názvu (tlačidlo „Preložiť").
+  const translateItem = async (idx) => {
+    if (!targetLang) { toast('Preklad je dostupný pri jazyku SK+DE alebo SK+EN', 'err'); return }
+    if (!String(f.items[idx].descPrimary || '').trim()) { toast('Vyplňte slovenský popis', 'err'); return }
+    try {
+      await runTranslate(idx, 'descPrimary', 'descSecondary')
       toast('Návrh prekladu vložený — upravte podľa potreby')
     } catch (e) {
       toast(e.message, 'err')
     }
+  }
+
+  // Auto-preklad pri opustení SK poľa: prekladá LEN keď je cudzojazyčné pole ešte prázdne,
+  // aby neprepísal ručnú úpravu. Tichý (bez toastu), chyby ignoruje — je to len návrh.
+  const autoTranslateField = (idx, srcKey, dstKey) => {
+    if (!targetLang) return
+    const it = f.items[idx]
+    if (!it || !String(it[srcKey] || '').trim() || String(it[dstKey] || '').trim()) return
+    runTranslate(idx, srcKey, dstKey).catch(() => {})
   }
 
   const translateTerms = async () => {
@@ -219,28 +261,71 @@ export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, o
     }
   }
 
+  // Zmena šablóny podmienok automaticky načíta jej text do poľa (aby ho používateľ prispôsobil).
+  // Ak je text ručne upravený (nezhoduje sa so žiadnou šablónou), pred prepísaním sa spýtame.
+  const onTermsTemplateChange = (e) => {
+    const tmpl = e.target.value
+    const next = termsDefaults[tmpl] ?? ''
+    const cur = String(f.termsBody || '').trim()
+    const known = cur === '' ||
+      cur === String(termsDefaults.kratka || '').trim() ||
+      cur === String(termsDefaults.plna || '').trim()
+    if (!known && !window.confirm('Text podmienok je upravený. Prepísať ho vybranou šablónou?')) {
+      setF(prev => ({ ...prev, termsTemplate: tmpl })) // zmeň len šablónu, text ponechaj
+      return
+    }
+    termsPristineRef.current = true
+    setF(prev => ({ ...prev, termsTemplate: tmpl, termsBody: next }))
+  }
+
+  // Poistka pri uložení: doplní preklad tam, kde je SK vyplnené a cudzojazyčný náprotivok prázdny
+  // (napr. keď používateľ napísal text a rovno klikol Uložiť bez opustenia poľa). Jedna dávka.
+  const backfillTranslations = async (rawItems) => {
+    if (!targetLang) return rawItems
+    const jobs = []
+    rawItems.forEach((it, i) => {
+      if (String(it.descPrimary || '').trim() && !String(it.descSecondary || '').trim()) {
+        jobs.push({ i, dstKey: 'descSecondary', text: String(it.descPrimary).trim() })
+      }
+      if (String(it.descDetail || '').trim() && !String(it.descDetailSecondary || '').trim()) {
+        jobs.push({ i, dstKey: 'descDetailSecondary', text: String(it.descDetail).trim() })
+      }
+    })
+    if (!jobs.length) return rawItems
+    const filled = rawItems.map(it => ({ ...it }))
+    try {
+      const res = await apiCall('translateText', { texts: jobs.map(j => j.text), targetLang })
+      const translations = res.translations || []
+      jobs.forEach((j, k) => { if (translations[k]) filled[j.i][j.dstKey] = translations[k] })
+      setF(prev => ({ ...prev, items: filled })) // premietni aj do formulára
+    } catch { /* preklad je best-effort; ak zlyhá, uložíme bez neho */ }
+    return filled
+  }
+
   const save = async () => {
     if (frozen) { toast('Ponuka je uzamknutá', 'err'); return }
     if (!f.customerId) { toast('Vyberte zákazníka', 'err'); return }
     if (!f.projectName.trim()) { toast('Vyplňte názov projektu', 'err'); return }
-    const items = f.items.map(it => ({
-      descPrimary: it.descPrimary.trim(),
-      descSecondary: it.descSecondary.trim(),
-      descDetail: it.descDetail.trim(),
+    if (f.items.some(it => !String(it.descPrimary || '').trim())) {
+      toast('Vyplňte popis všetkých položiek', 'err')
+      return
+    }
+    if (f.items.some(it => lineNet(it) <= 0)) {
+      toast('Vyplňte cenu položiek', 'err')
+      return
+    }
+    setSaving(true)
+    const source = await backfillTranslations(f.items)
+    const items = source.map(it => ({
+      descPrimary: String(it.descPrimary || '').trim(),
+      descSecondary: String(it.descSecondary || '').trim(),
+      descDetail: String(it.descDetail || '').trim(),
+      descDetailSecondary: String(it.descDetailSecondary || '').trim(),
       quantity: String(it.quantity || '').trim(),
       unit: it.unit || '',
       unitPriceNet: String(it.unitPriceNet || '').trim(),
       linePriceNet: String(it.linePriceNet || '').trim(),
     }))
-    if (items.some(it => !it.descPrimary)) {
-      toast('Vyplňte popis všetkých položiek', 'err')
-      return
-    }
-    if (items.some(it => lineNet(it) <= 0)) {
-      toast('Vyplňte cenu položiek', 'err')
-      return
-    }
-    setSaving(true)
     try {
       const quote = {
         ...(isEdit ? { id: quoteId } : {}),
@@ -349,13 +434,18 @@ export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, o
         </label>
         <label className="field">
           <span>Šablóna podmienok</span>
-          <select value={f.termsTemplate} onChange={set('termsTemplate')} disabled={frozen}>
+          <select value={f.termsTemplate} onChange={onTermsTemplateChange} disabled={frozen}>
             {QUOTE_TERMS_TEMPLATES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
         </label>
         <label className="field span-2">
           <span>Text podmienok (strana 2 PDF, ak vyplnené)</span>
-          <textarea rows={6} value={f.termsBody} onChange={set('termsBody')} disabled={frozen} />
+          <textarea
+            rows={6}
+            value={f.termsBody}
+            onChange={e => { termsPristineRef.current = false; set('termsBody')(e) }}
+            disabled={frozen}
+          />
           {!frozen && translateTargetLang(f.language) && (
             <button type="button" className="btn btn-sm btn-secondary" style={{ marginTop: 6 }} onClick={translateTerms}>
               Preložiť podmienky do {translateTargetLang(f.language)}
@@ -388,29 +478,65 @@ export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, o
           </thead>
           <tbody>
             {f.items.map((it, idx) => (
-              <tr key={idx}>
-                <td><input value={it.descPrimary} onChange={e => setItem(idx, 'descPrimary', e.target.value)} disabled={frozen} /></td>
-                <td>
-                  <input value={it.descSecondary} onChange={e => setItem(idx, 'descSecondary', e.target.value)} disabled={frozen} />
-                  {!frozen && translateTargetLang(f.language) && (
-                    <button type="button" className="btn btn-sm btn-ghost" onClick={() => translateItem(idx)}>Preložiť</button>
-                  )}
-                </td>
-                <td><input value={it.quantity} onChange={e => setItem(idx, 'quantity', e.target.value)} disabled={frozen} style={{ width: 56 }} /></td>
-                <td>
-                  <select value={it.unit} onChange={e => setItem(idx, 'unit', e.target.value)} disabled={frozen}>
-                    {QUOTE_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                  </select>
-                </td>
-                <td className="num"><input value={it.unitPriceNet} onChange={e => setItem(idx, 'unitPriceNet', e.target.value)} disabled={frozen} style={{ width: 80 }} /></td>
-                <td className="num"><input value={it.linePriceNet} onChange={e => setItem(idx, 'linePriceNet', e.target.value)} disabled={frozen} style={{ width: 80 }} placeholder="paušál" /></td>
-                <td className="num">{fmtMoney(lineNet(it))}</td>
-                <td>
-                  {!frozen && f.items.length > 1 && (
-                    <button type="button" className="icon-btn" onClick={() => setF({ ...f, items: f.items.filter((_, i) => i !== idx) })}>✕</button>
-                  )}
-                </td>
-              </tr>
+              <Fragment key={idx}>
+                <tr>
+                  <td>
+                    <input
+                      value={it.descPrimary}
+                      onChange={e => setItem(idx, 'descPrimary', e.target.value)}
+                      onBlur={() => autoTranslateField(idx, 'descPrimary', 'descSecondary')}
+                      disabled={frozen}
+                    />
+                  </td>
+                  <td>
+                    <input value={it.descSecondary} onChange={e => setItem(idx, 'descSecondary', e.target.value)} disabled={frozen} />
+                    {translating[idx + ':descSecondary'] && <span className="muted" style={{ fontSize: '0.8em' }}>prekladám…</span>}
+                    {!frozen && targetLang && (
+                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => translateItem(idx)}>Preložiť</button>
+                    )}
+                  </td>
+                  <td><input value={it.quantity} onChange={e => setItem(idx, 'quantity', e.target.value)} disabled={frozen} style={{ width: 56 }} /></td>
+                  <td>
+                    <select value={it.unit} onChange={e => setItem(idx, 'unit', e.target.value)} disabled={frozen}>
+                      {QUOTE_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                  </td>
+                  <td className="num"><input value={it.unitPriceNet} onChange={e => setItem(idx, 'unitPriceNet', e.target.value)} disabled={frozen} style={{ width: 80 }} /></td>
+                  <td className="num"><input value={it.linePriceNet} onChange={e => setItem(idx, 'linePriceNet', e.target.value)} disabled={frozen} style={{ width: 80 }} placeholder="paušál" /></td>
+                  <td className="num">{fmtMoney(lineNet(it))}</td>
+                  <td>
+                    {!frozen && f.items.length > 1 && (
+                      <button type="button" className="icon-btn" onClick={() => setF({ ...f, items: f.items.filter((_, i) => i !== idx) })}>✕</button>
+                    )}
+                  </td>
+                </tr>
+                <tr className="item-detail-row">
+                  <td colSpan={8} style={{ paddingTop: 0 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <label className="field" style={{ margin: 0 }}>
+                        <span style={{ fontSize: '0.8em' }}>Detailný popis SK (voliteľné)</span>
+                        <textarea
+                          rows={2}
+                          value={it.descDetail}
+                          onChange={e => setItem(idx, 'descDetail', e.target.value)}
+                          onBlur={() => autoTranslateField(idx, 'descDetail', 'descDetailSecondary')}
+                          disabled={frozen}
+                        />
+                      </label>
+                      <label className="field" style={{ margin: 0 }}>
+                        <span style={{ fontSize: '0.8em' }}>
+                          Detailný popis {targetLang || 'DE/EN'} (voliteľné)
+                          {translating[idx + ':descDetailSecondary'] && <span className="muted"> — prekladám…</span>}
+                        </span>
+                        <textarea rows={2} value={it.descDetailSecondary} onChange={e => setItem(idx, 'descDetailSecondary', e.target.value)} disabled={frozen} />
+                        {!frozen && targetLang && (
+                          <button type="button" className="btn btn-sm btn-ghost" style={{ marginTop: 4 }} onClick={() => runTranslate(idx, 'descDetail', 'descDetailSecondary')}>Preložiť popis</button>
+                        )}
+                      </label>
+                    </div>
+                  </td>
+                </tr>
+              </Fragment>
             ))}
           </tbody>
           <tfoot>
