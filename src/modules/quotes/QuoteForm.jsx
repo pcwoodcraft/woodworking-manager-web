@@ -247,15 +247,23 @@ export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, o
     runTranslate(idx, srcKey, dstKey).catch(() => {})
   }
 
+  // Preloží podmienky do striedaného formátu: každá podmienka = SK riadok + preklad pod ním
+  // (bloky oddelené prázdnym riadkom). PDF potom dá odrážku len pred SK.
   const translateTerms = async () => {
-    const lang = translateTargetLang(f.language)
-    if (!lang) { toast('Preklad je dostupný pri jazyku SK+DE alebo SK+EN', 'err'); return }
-    if (!f.termsBody.trim()) { toast('Vyplňte podmienky', 'err'); return }
+    if (!targetLang) { toast('Preklad je dostupný pri jazyku SK+DE alebo SK+EN', 'err'); return }
+    const raw = f.termsBody.trim()
+    if (!raw) { toast('Vyplňte podmienky', 'err'); return }
+    const hasBlank = /\n\s*\n/.test(raw)
+    const blocks = hasBlank
+      ? raw.split(/\n\s*\n/).map(b => b.split('\n').map(s => s.trim()).filter(Boolean)).filter(b => b.length)
+      : raw.split('\n').map(s => s.trim()).filter(Boolean).map(l => [l])
+    const skLines = blocks.map(b => b[0])
     try {
-      const res = await apiCall('translateText', { texts: [f.termsBody], targetLang: lang })
-      const t = res.translations?.[0] || ''
-      setF({ ...f, termsBody: f.termsBody + '\n\n' + t })
-      toast('Preklad pripojený — upravte podľa potreby')
+      const res = await apiCall('translateText', { texts: skLines, targetLang })
+      const tr = res.translations || []
+      const out = blocks.map((b, i) => (tr[i] ? b[0] + '\n' + tr[i] : b[0])).join('\n\n')
+      setF({ ...f, termsBody: out })
+      toast('Podmienky preložené — SK riadok a pod ním preklad')
     } catch (e) {
       toast(e.message, 'err')
     }
