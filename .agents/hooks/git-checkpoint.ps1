@@ -24,6 +24,22 @@ function Invoke-GitQuiet {
     }
 }
 
+function Update-PactStatus {
+    $pactRoot = "C:\AI-Stuff"
+    $syncScript = Join-Path $pactRoot "scripts\sync-pact-status.ps1"
+    if (-not (Test-Path -LiteralPath $syncScript -PathType Leaf)) {
+        return
+    }
+
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    try {
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $syncScript *> $null
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
+}
+
 $rawInput = [Console]::In.ReadToEnd()
 
 try {
@@ -34,6 +50,7 @@ try {
 }
 
 if ($event.stop_hook_active -eq $true) {
+    Update-PactStatus
     Write-HookJson @{ continue = $true }
     exit 0
 }
@@ -121,3 +138,4 @@ if ($aheadResult.ExitCode -eq 0 -and [int]::TryParse($aheadText, [ref]$ahead) -a
 }
 
 Write-HookJson @{ continue = $true }
+Update-PactStatus
