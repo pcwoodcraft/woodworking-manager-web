@@ -3,20 +3,27 @@
 React web app for the internal system of a Slovak woodworking company (PCW):
 customers/CRM, quotes + Ateliér, projects, invoices + payments, economics,
 employees, admin. Live at https://pcwoodcraft.github.io/woodworking-manager-web/
-Live overview & roadmap: `../woodworking-manager-stav-a-plan.md` · backend: `../woodworking-manager-gas/`.
+Live overview & roadmap: `../woodworking-manager-stav-a-plan.md` ·
+**backend: `../woodworking-manager-api/`** (Supabase edge function + Postgres).
+`../woodworking-manager-gas/` is only the Google worker (Drive, PDF, e-mails) and the proxy.
 
 ## Critical facts (read first)
 
 - **Pushing to `main` deploys to production.** GitHub Actions builds and publishes
   to GitHub Pages on every push (~2–5 min). There is no staging — commit to `main`
   only when the approved scope is finished and `npm run lint` + `npm run build` pass.
-- **The API contract lives in the backend repo.** Every `apiCall('actionName', payload)`
-  must match an action registered in `../woodworking-manager-gas/src/Actions.js`.
-  Never invent action names or payload fields. If a feature needs a new/changed
-  action, the backend must be implemented and deployed **before** the frontend push.
-- **`Content-Type: text/plain` in `src/api/client.js` is intentional.** It avoids
-  the CORS preflight that Apps Script cannot handle. Never "fix" it to
-  `application/json` — the app would stop working.
+- **The API contract lives in `../woodworking-manager-api/`.** Every `apiCall('actionName', payload)`
+  must match a handler in `supabase/functions/api/router.ts` and a permission entry in
+  `supabase/functions/api/perm/permMap.ts`. Never invent action names or payload fields. If a
+  feature needs a new/changed action, the backend must be implemented and deployed **before** the
+  frontend push. (`../woodworking-manager-gas/src/Actions.js` is dead pre-migration code — do not
+  use it as the contract.)
+- **Requests still go through the old Apps Script URL, which proxies to the edge function.**
+  `src/config.js` → GAS `/exec` → Supabase. That extra hop is intentional for now; switching
+  `config.js` to the edge URL directly is a planned, separate change.
+- **`Content-Type: text/plain` in `src/api/client.js` is intentional.** It avoids the CORS
+  preflight that Apps Script cannot handle, and the edge parser accepts text bodies on purpose.
+  Never "fix" it to `application/json` — the app would stop working.
 - **HashRouter and Vite `base: './'` are required by GitHub Pages** (subfolder
   hosting). Never switch to BrowserRouter or absolute base.
 - **Permission checks in the UI are cosmetics.** `RequirePerm` and menu filtering
