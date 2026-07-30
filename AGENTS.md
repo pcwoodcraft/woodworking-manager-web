@@ -95,3 +95,14 @@ Respond in **Slovak**. Peter has strong technical thinking but is not a
 professional developer: lead with what the change means in the app, explain
 necessary jargon in one sentence, keep file lists short. Never simplify into
 inaccuracy.
+
+## Git checkpoints
+
+- After a user-approved write task, review the diff and run relevant checks.
+- Work on a `codex/*` or `agent/*` branch.
+- Commit only files from the current task, then push with
+  `git push -u origin HEAD` when the branch cannot deploy production.
+- Never automatically push `main` or `master`, force-push, create tags, merge,
+  publish, or deploy.
+- Do not commit or push a read-only audit, failed checks, incomplete work, or
+  unrelated changes; report the exact reason.
