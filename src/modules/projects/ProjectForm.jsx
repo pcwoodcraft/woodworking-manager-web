@@ -74,7 +74,14 @@ export default function ProjectForm({ project, customers, onClose, onSaved }) {
       plannedStart: f.plannedStart,
       notes: f.notes,
     }
-    if (isEdit) data.id = project.id
+    if (isEdit) {
+      data.id = project.id
+      // F6: v režime úpravy sa stav do payloadu NEZARADÍ vôbec. Nestačí select zneaktívniť —
+      // ak by medzitým stav zmenil niekto iný (alebo detail projektu), formulár by poslal starú
+      // hodnotu a bežná úprava nesúvisiaceho poľa by skončila na chybe. Stav sa mení výhradne
+      // cez detail projektu (updateProjectStatus), ktorý rieši aj sync dopytu a audit.
+      delete data.status
+    }
     setSaving(true)
     try {
       const res = await apiCall(isEdit ? 'updateProject' : 'addProject', { project: data })
@@ -169,9 +176,10 @@ export default function ProjectForm({ project, customers, onClose, onSaved }) {
         </label>
         <label className="field">
           <span>Stav</span>
-          <select value={f.status} onChange={set('status')}>
+          <select value={f.status} onChange={set('status')} disabled={isEdit}>
             {PROJECT_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
+          {isEdit && <small className="muted">Stav sa mení v detaile projektu.</small>}
         </label>
         <label className="field span-2">
           <span>Poznámky</span>

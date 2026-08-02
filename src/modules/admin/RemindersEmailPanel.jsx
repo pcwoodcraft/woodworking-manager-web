@@ -11,6 +11,8 @@ export default function RemindersEmailPanel() {
     alertAdvanceDays: 14,
     alertDeadlineDays: 7,
     alertStaleDays: 7,
+    alertComplaintNewDays: 3,
+    alertComplaintProgressDays: 7,
   })
   const [saved, setSaved] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -25,6 +27,8 @@ export default function RemindersEmailPanel() {
         alertAdvanceDays: data.alertAdvanceDays || 14,
         alertDeadlineDays: data.alertDeadlineDays || 7,
         alertStaleDays: data.alertStaleDays || 7,
+        alertComplaintNewDays: data.alertComplaintNewDays || 3,
+        alertComplaintProgressDays: data.alertComplaintProgressDays || 7,
       })
       setSaved(data)
       setState({ loading: false, error: null })
@@ -71,6 +75,8 @@ export default function RemindersEmailPanel() {
     || String(form.alertAdvanceDays) !== String(saved.alertAdvanceDays)
     || String(form.alertDeadlineDays) !== String(saved.alertDeadlineDays)
     || String(form.alertStaleDays) !== String(saved.alertStaleDays)
+    || String(form.alertComplaintNewDays) !== String(saved.alertComplaintNewDays)
+    || String(form.alertComplaintProgressDays) !== String(saved.alertComplaintProgressDays)
   )
 
   return (
@@ -111,6 +117,18 @@ export default function RemindersEmailPanel() {
                   <span>Neaktívny dopyt — dní</span>
                   <input type="number" min={1} value={form.alertStaleDays}
                     onChange={e => setForm({ ...form, alertStaleDays: e.target.value })} />
+                </label>
+                {/* F6/T1-03: reklamácia je jediný bod, kde je zákazník už nespokojný — doteraz
+                    sa v pripomienkach nepripomínala vôbec. Meria sa od poslednej zmeny stavu. */}
+                <label className="field">
+                  <span>Nová reklamácia — dní bez pohybu</span>
+                  <input type="number" min={1} value={form.alertComplaintNewDays}
+                    onChange={e => setForm({ ...form, alertComplaintNewDays: e.target.value })} />
+                </label>
+                <label className="field">
+                  <span>Riešená reklamácia — dní bez pohybu</span>
+                  <input type="number" min={1} value={form.alertComplaintProgressDays}
+                    onChange={e => setForm({ ...form, alertComplaintProgressDays: e.target.value })} />
                 </label>
               </div>
 
