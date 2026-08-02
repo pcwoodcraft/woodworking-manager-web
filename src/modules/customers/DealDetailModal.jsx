@@ -10,6 +10,7 @@ import {
   DEAL_PHASES, LOST_REASONS, STALE_DAYS, sourceLabel,
   canConvertDealToProject, quoteLinkStatusLabel, QUOTE_LINK_STATUSES,
 } from './crmConstants'
+import ConvertToProjectModal from '../projects/ConvertToProjectModal'
 import { quoteStatusLabel } from '../quotes/quoteConstants'
 import SalesOwnerSelect from './SalesOwnerSelect'
 import ProjectEvaluationSection from '../projects/ProjectEvaluationSection'
@@ -24,6 +25,7 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
   const canSeeCosts = can('perm_costs_add') || can('perm_costs_full')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [convertOpen, setConvertOpen] = useState(false)
   const [data, setData] = useState(null)
   const [phaseForm, setPhaseForm] = useState({ phase: 'novy_dopyt', lostReason: '', lostReasonOther: '', ownerEmail: '', estimatedValue: '' })
   const [quoteForm, setQuoteForm] = useState({ title: '', link: '', status: 'koncept' })
@@ -151,13 +153,15 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
     finally { setSaving(false) }
   }
 
-  const convertToProject = async () => {
-    if (!window.confirm('Vytvoriť projekt v IS z tohto dopytu? Dopyt sa prepojí s projektom vo fáze Príprava. Po-predaj (uzavreté) nastaví až odovzdanie projektu.')) return
+  // F2/T10-01: window.confirm nahradený dialógom so sadzbou — nový projekt už nedostáva
+  // sadzbu potichu z konštanty v kóde, človek ju pred vytvorením vidí a môže ju zmeniť.
+  const convertToProject = async ({ hourlyRate }) => {
     setSaving(true)
     try {
-      const res = await apiCall('convertDealToProject', { dealId })
+      const res = await apiCall('convertDealToProject', { dealId, hourlyRate })
       if (res.driveWarning) toast('Projekt vytvorený, Drive: ' + res.driveWarning, 'err')
       else toast('Projekt ' + res.projectId + ' vytvorený')
+      setConvertOpen(false)
       onClose()
       navigate('/projekty/' + res.projectId)
     } catch (e) {
@@ -341,7 +345,7 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
         <button className="btn btn-sm btn-secondary" onClick={saveEstimatedValue} disabled={saving}>Uložiť hodnotu</button>
         <button className="btn btn-sm btn-secondary" onClick={markLost} disabled={saving || deal.status === 'prehrate'}>Prehrané</button>
         {showConvert && (
-          <button className="btn btn-sm" onClick={convertToProject} disabled={saving}>Vytvoriť projekt</button>
+          <button className="btn btn-sm" onClick={() => setConvertOpen(true)} disabled={saving}>Vytvoriť projekt</button>
         )}
       </div>
 
@@ -509,6 +513,16 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
           {deal.clientDeadline && <>Termín klienta: {fmtDate(deal.clientDeadline)} · </>}
           {deal.nextActionDate && <>Ďalšia akcia: {fmtDate(deal.nextActionDate)}</>}
         </p>
+      )}
+
+      {convertOpen && (
+        <ConvertToProjectModal
+          title="Vytvoriť projekt z dopytu"
+          popis={'Dopyt sa prepojí s novým projektom vo fáze Príprava. Po-predaj (uzavreté) nastaví až odovzdanie projektu.'}
+          busy={saving}
+          onClose={() => setConvertOpen(false)}
+          onConfirm={convertToProject}
+        />
       )}
     </Modal>
   )

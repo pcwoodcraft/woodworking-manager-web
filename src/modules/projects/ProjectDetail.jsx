@@ -489,6 +489,13 @@ export default function ProjectDetail() {
           <h1>{project.name}</h1>
           <div className="project-id">{project.id}</div>
           <div className="muted">{project.customer}</div>
+          {/* F2/T10-01: projekt bez sadzby musí byť VIDIEŤ. Bez nej sa odpracované hodiny
+              nezapočítajú do nákladov a projekt vyzerá ziskovejšie, než v skutočnosti je. */}
+          {!Number(project.hourlyRate) && (
+            <div className="pill pill-warn" style={{ marginTop: 6, display: 'inline-block' }}>
+              Bez hodinovej sadzby — hodiny sa nezapočítavajú do nákladov
+            </div>
+          )}
         </div>
         <div className="head-actions">
           {canWrite ? (

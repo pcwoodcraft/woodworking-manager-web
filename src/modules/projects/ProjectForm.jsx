@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Modal from '../../components/Modal'
 import { useToast } from '../../components/Toast'
 import { apiCall } from '../../api/client'
@@ -33,7 +33,10 @@ export default function ProjectForm({ project, customers, onClose, onSaved }) {
     priceNet: project?.priceNet || '',
     estimatedMaterialCosts: project?.estimatedMaterialCosts || '',
     estimatedHours: project?.estimatedHours || '',
-    hourlyRate: project?.hourlyRate || '25',
+    // F2/T10-01: ŽIADNA sadzba natvrdo. Bola tu konštanta '25', hoci dielňa účtuje 30 €/h —
+    // a keďže pole bolo predvyplnené, nikto si toho pri zakladaní projektu nevšimol.
+    // Pri novom projekte sa načíta štandard z nastavení (nižšie), pri úprave sa berie hodnota projektu.
+    hourlyRate: project?.hourlyRate || '',
     status: project ? normalizeStatus(project.status) : 'priprava',
     deadline: toIsoDate(project?.deadline) || '',
     priority: project?.priority || '',
@@ -42,6 +45,26 @@ export default function ProjectForm({ project, customers, onClose, onSaved }) {
   })
 
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
+
+  // Štandardná sadzba z nastavení — len ako predvyplnenie NOVÉHO projektu, nikdy sa nedosadzuje
+  // do výpočtu. Číta sa pri otvorení formulára (nie z bootstrapu), aby už prihlásená relácia
+  // po zmene štandardu nepredvypĺňala starú hodnotu. Zlyhanie sa ticho ignoruje — pole ostane
+  // prázdne a používateľ sadzbu zadá ručne; nechceme kvôli predvyplneniu zablokovať formulár.
+  const [standard, setStandard] = useState(null)
+  useEffect(() => {
+    if (isEdit) return
+    let zrusene = false
+    apiCall('getProjectDefaults', {})
+      .then(res => {
+        if (zrusene) return
+        setStandard(res?.defaultHourlyRate || null)
+        if (res?.defaultHourlyRate) {
+          setF(prev => (prev.hourlyRate === '' ? { ...prev, hourlyRate: String(res.defaultHourlyRate) } : prev))
+        }
+      })
+      .catch(() => {})
+    return () => { zrusene = true }
+  }, [isEdit])
 
   const setPriceNet = (e) => {
     const val = e.target.value
@@ -67,7 +90,8 @@ export default function ProjectForm({ project, customers, onClose, onSaved }) {
       priceNet: f.priceNet === '' ? '' : parseNum(f.priceNet),
       estimatedMaterialCosts: f.estimatedMaterialCosts === '' ? '' : parseNum(f.estimatedMaterialCosts),
       estimatedHours: f.estimatedHours === '' ? '' : parseNum(f.estimatedHours),
-      hourlyRate: parseNum(f.hourlyRate),
+      // Prázdne pole musí odísť ako '', nie ako parseNum('') = 0 — nulovú sadzbu server odmieta.
+      hourlyRate: f.hourlyRate === '' ? '' : parseNum(f.hourlyRate),
       status: f.status,
       deadline: f.deadline,
       priority: f.priority,
@@ -172,7 +196,14 @@ export default function ProjectForm({ project, customers, onClose, onSaved }) {
         </label>
         <label className="field">
           <span>Hodinová sadzba (€)</span>
-          <input type="number" value={f.hourlyRate} onChange={set('hourlyRate')} />
+          <input type="number" step="0.01" value={f.hourlyRate} onChange={set('hourlyRate')} placeholder="napr. 30" />
+          {f.hourlyRate === '' ? (
+            <small className="budget-label-warn">
+              Bez sadzby sa odpracované hodiny nezapočítajú do nákladov ani do marže.
+            </small>
+          ) : (standard && String(f.hourlyRate) !== String(standard)
+            ? <small className="muted">Štandard dielne je {standard} €/h.</small>
+            : null)}
         </label>
         <label className="field">
           <span>Stav</span>

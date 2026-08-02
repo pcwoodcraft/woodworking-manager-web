@@ -8,6 +8,7 @@ import { fmtDate, fmtMoney } from '../../utils/format'
 import { quoteStatusLabel, quoteTaxModeLabel } from './quoteConstants'
 import QuoteForm from './QuoteForm'
 import QuoteVisualizations from './QuoteVisualizations'
+import ConvertToProjectModal from '../projects/ConvertToProjectModal'
 
 export default function QuoteDetail() {
   const { id } = useParams()
@@ -19,6 +20,7 @@ export default function QuoteDetail() {
   const [data, setData] = useState(null)
   const [pdfBusy, setPdfBusy] = useState(false)
   const [projectBusy, setProjectBusy] = useState(false)
+  const [convertOpen, setConvertOpen] = useState(false)
 
   const load = async () => {
     setState({ loading: true, error: null })
@@ -47,11 +49,12 @@ export default function QuoteDetail() {
     }
   }
 
-  const convertProject = async () => {
-    if (!window.confirm('Vytvoriť projekt z tejto ponuky?')) return
+  // F2/T10-01: potvrdenie prevodu je dialog, nie window.confirm — sadzba nového projektu
+  // musí byť pred vytvorením vidieť a musí sa dať zmeniť.
+  const convertProject = async ({ hourlyRate }) => {
     setProjectBusy(true)
     try {
-      const res = await apiCall('convertQuoteToProject', { quoteId: id })
+      const res = await apiCall('convertQuoteToProject', { quoteId: id, hourlyRate })
       if (res.driveWarning) toast('Projekt vytvorený, ale Drive: ' + res.driveWarning)
       else toast('Projekt vytvorený')
       navigate('/projekty/' + res.projectId)
@@ -113,7 +116,7 @@ export default function QuoteDetail() {
           <a className="btn btn-secondary" href={q.pdfUrl} target="_blank" rel="noreferrer">Otvoriť PDF</a>
         )}
         {canProject && (
-          <button type="button" className="btn" onClick={convertProject} disabled={projectBusy}>
+          <button type="button" className="btn" onClick={() => setConvertOpen(true)} disabled={projectBusy}>
             {projectBusy ? 'Vytvára sa…' : 'Vytvoriť projekt'}
           </button>
         )}
@@ -121,6 +124,16 @@ export default function QuoteDetail() {
           <Link className="btn btn-secondary" to={'/projekty/' + q.projectId}>Projekt {q.projectId}</Link>
         )}
       </div>
+
+      {convertOpen && (
+        <ConvertToProjectModal
+          title="Vytvoriť projekt z ponuky"
+          popis={'Z ponuky ' + (q.id || id) + ' vznikne nový projekt vrátane ceny a priečinka na Drive.'}
+          busy={projectBusy}
+          onClose={() => setConvertOpen(false)}
+          onConfirm={convertProject}
+        />
+      )}
 
       {q.pdfStale && q.pdfUrl && (
         <p className="muted" style={{ marginBottom: 12 }}>PDF je neaktuálne — pregenerujte ho pred odoslaním.</p>
