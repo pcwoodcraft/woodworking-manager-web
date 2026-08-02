@@ -7,6 +7,7 @@ import { fmtMoney, fmtDate, parseNum, toIsoDate, invoiceMonth, fmtMonth } from '
 import CreateIssuedInvoiceForm, { TYPE_LABELS } from './CreateIssuedInvoiceForm'
 import InvoicePaymentModal from './InvoicePaymentModal'
 import DeleteInvoiceModal from './DeleteInvoiceModal'
+import DeleteIncomingInvoiceModal from './DeleteIncomingInvoiceModal'
 import { useAuth } from '../../auth/AuthContext'
 
 function displayInvoiceNumber(inv) {
@@ -166,14 +167,18 @@ export default function Invoices() {
   const toast = useToast()
   const { can } = useAuth()
   const canInvoicesAdd = can('perm_invoices_add')
-  // F5/T1-02: mazanie má vlastné právo — naraz ho môže mať len jeden aktívny používateľ.
+  // F5/T1-02: mazanie VYDANEJ faktúry má vlastné právo — naraz ho môže mať len jeden aktívny
+  // používateľ. Prijatá faktúra je doklad dodávateľa, nie náš doklad so zákonným číslom, takže
+  // jej mazanie zostáva pod bežným perm_invoices_full.
   const canInvoicesDelete = can('perm_invoices_delete')
+  const canInvoicesFull = can('perm_invoices_full')
   const [state, setState] = useState({ loading: true, error: null })
   const [data, setData] = useState({ incoming: [], invoices: [], projects: [], customers: [] })
   const [tab, setTab] = useState('prijate')
   const [filt, setFilt] = useState({ month: '', status: '', vendor: '' })
   const [modal, setModal] = useState(null) // {type:'incoming',inv} | {type:'issued',inv} | 'new-issued'
-  const [mazanie, setMazanie] = useState(null)   // faktúra, ktorá sa maže
+  const [mazanie, setMazanie] = useState(null)   // vydaná faktúra, ktorá sa maže
+  const [mazaniePrijatej, setMazaniePrijatej] = useState(null)   // prijatá faktúra, ktorá sa maže
   const [mazem, setMazem] = useState(false)
   const [chybaMazania, setChybaMazania] = useState('')
 
@@ -300,6 +305,9 @@ export default function Invoices() {
                         <td className="num">{fmtMoney(i.amountGross)}</td>
                         <td className="row-action">
                           <button className="icon-btn" title="Upraviť" onClick={() => setModal({ type: 'incoming', inv: i })}>✎</button>
+                          {canInvoicesFull && (
+                            <button className="icon-btn" title="Zmazať" onClick={() => { setChybaMazania(''); setMazaniePrijatej(i) }}>🗑</button>
+                          )}
                         </td>
                       </tr>
                     )
@@ -383,6 +391,30 @@ export default function Invoices() {
               await load()
             } catch (e) {
               // Vyplnené polia zámerne ostávajú — používateľ nemusí písať dôvod znova.
+              setChybaMazania(e.message || 'Zmazanie zlyhalo.')
+            } finally {
+              setMazem(false)
+            }
+          }}
+        />
+      )}
+
+      {mazaniePrijatej && (
+        <DeleteIncomingInvoiceModal
+          invoice={mazaniePrijatej}
+          saving={mazem}
+          serverError={chybaMazania}
+          onClose={() => { if (!mazem) { setMazaniePrijatej(null); setChybaMazania('') } }}
+          onConfirm={async ({ reason }) => {
+            if (mazem) return            // ochrana pred dvojitým odoslaním
+            setMazem(true); setChybaMazania('')
+            try {
+              await apiCall('deleteIncomingInvoice', { id: mazaniePrijatej.id, reason })
+              toast('Prijatá faktúra ' + (mazaniePrijatej.invoiceNumber || '') + ' zmazaná. Kópia je v audite.')
+              setMazaniePrijatej(null)
+              await load()
+            } catch (e) {
+              // Vyplnený dôvod zámerne ostáva — používateľ ho nemusí písať znova.
               setChybaMazania(e.message || 'Zmazanie zlyhalo.')
             } finally {
               setMazem(false)
