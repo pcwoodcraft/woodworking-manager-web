@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { apiCall } from '../../api/client'
 import { loadBundle, section } from '../../api/bundle'
+import CancelProjectModal from './CancelProjectModal'
 import { cacheGet, cacheSet, invalidateProjectCaches } from '../../api/cache'
 import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox, StatusBadge } from '../../components/ui'
@@ -89,16 +90,33 @@ function DeliveryConfirmModal({ remainingNet, openInvoices, onClose, onConfirm, 
   )
 }
 
-function ProjectManualPaymentModal({ project, onClose, onSaved }) {
+function ProjectManualPaymentModal({ project, paymentSummary, onClose, onSaved }) {
   const toast = useToast()
   const [amount, setAmount] = useState('')
   const [paidDate, setPaidDate] = useState(toIsoDate(new Date().toISOString()))
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
 
+  // F6, rozhodnutie I (vlastník, 1. 8. 2026): preplatok sa NEBLOKUJE — má legitímne dôvody
+  // (záloha nad rámec, zaokrúhlenie, doplatok vopred). Ale nemá prejsť ticho: pred odoslaním
+  // sa ukáže konkrétny rozdiel a používateľ môže sumu upraviť. Server sa nemení.
+  const cena = Number(paymentSummary?.contractNet) || 0
+  const uhradene = Number(paymentSummary?.paidNet) || 0
+  const zadana = parseNum(amount) || 0
+  const presah = cena > 0 ? Math.round((uhradene + zadana - cena) * 100) / 100 : 0
+  const jePreplatok = presah > 0.01
+
   const save = async () => {
     const amt = parseNum(amount)
     if (!amt) { toast('Zadajte sumu', 'err'); return }
+    if (jePreplatok) {
+      const ok = window.confirm(
+        'Súčet úhrad presiahne cenu projektu o ' + fmtMoney(presah) + '. ' +
+        'Cena ' + fmtMoney(cena) + ', uhradené ' + fmtMoney(uhradene) + ', zadávate ' + fmtMoney(amt) + '. ' +
+        'Zapísať napriek tomu? Zrušiť = vrátiť sa a upraviť sumu.',
+      )
+      if (!ok) return
+    }
     setSaving(true)
     try {
       await apiCall('addProjectPayment', {
@@ -222,6 +240,9 @@ export default function ProjectDetail() {
 
   const [state, setState] = useState({ loading: true, error: null })
   const [data, setData] = useState(null)
+  // F6/T1-01: dialóg dôvodu prehry pri zrušení projektu s naviazaným dopytom
+  const [cancelModal, setCancelModal] = useState(false)
+  const [hasLinkedDeal, setHasLinkedDeal] = useState(false)
   const [summary, setSummary] = useState(null)
   const [tab, setTab] = useState('prehlad')
   const [modal, setModal] = useState(null)
@@ -246,6 +267,9 @@ export default function ProjectDetail() {
     setPaymentSummary(page.paymentSummary || null)
     setPayments(page.payments || [])
     setEvaluation(page.evaluation || null)
+    // `?? false` — keby pole v prechodnom stave chýbalo, dialóg sa jednoducho nezobrazí
+    // (degradácia na staré správanie) namiesto pádu stránky.
+    setHasLinkedDeal(page.hasLinkedDeal ?? false)
   }
 
   const load = async () => {
@@ -318,13 +342,28 @@ export default function ProjectDetail() {
       })
       return
     }
+    if (status === 'zruseny' && hasLinkedDeal) {
+      e.target.value = normalizeStatus(project.status)
+      setCancelModal(true)
+      return
+    }
     await doUpdateStatus(status)
   }
 
   const doUpdateStatus = async (status, opts) => {
     setSavingStatus(true)
     try {
-      const payload = { id: project.id, status, ...(opts || {}) }
+      const payload = {
+        id: project.id,
+        status,
+        // Idempotencia: pri opakovanom odoslaní (dvojklik, výpadok siete) server podľa tohto
+        // kľúča rozpozná retry a nezapíše druhú úhradu pri odovzdaní.
+        operationId: crypto.randomUUID(),
+        // Optimistický zámok: posielame stav, ktorý sme videli. Ak ho medzitým zmenil niekto iný,
+        // server zápis odmietne namiesto tichého prepísania.
+        expectedStatus: normalizeStatus(project.status),
+        ...(opts || {}),
+      }
       await apiCall('updateProjectStatus', payload)
       toast('Stav zmenený na „' + statusLabel(status) + '“')
       setDeliveryModal(null)
@@ -771,8 +810,19 @@ export default function ProjectDetail() {
         />
       )}
       {modal?.type === 'projectPayment' && (
-        <ProjectManualPaymentModal project={project} onClose={() => setModal(null)} onSaved={closeAndReload} />
+        <ProjectManualPaymentModal project={project} paymentSummary={paymentSummary} onClose={() => setModal(null)} onSaved={closeAndReload} />
       )}
+      {cancelModal && (
+        <CancelProjectModal
+          saving={savingStatus}
+          onClose={() => { if (!savingStatus) setCancelModal(false) }}
+          onConfirm={async ({ lostReason, lostReasonOther }) => {
+            await doUpdateStatus('zruseny', { lostReason, lostReasonOther })
+            setCancelModal(false)
+          }}
+        />
+      )}
+
       {deliveryModal && (
         <DeliveryConfirmModal
           remainingNet={deliveryModal.remainingNet}
