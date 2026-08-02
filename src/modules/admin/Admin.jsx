@@ -10,6 +10,7 @@ import DiagnosticsPanel from './DiagnosticsPanel'
 import FailedTimeEntriesPanel from './FailedTimeEntriesPanel'
 import ErrorLogPanel from './ErrorLogPanel'
 import InvoiceDeleteLogPanel from './InvoiceDeleteLogPanel'
+import IncomingInvoiceDeleteLogPanel from './IncomingInvoiceDeleteLogPanel'
 import RemindersEmailPanel from './RemindersEmailPanel'
 import SocialPostSettingsPanel from './SocialPostSettingsPanel'
 import FailedSocialPostsPanel from './FailedSocialPostsPanel'
@@ -224,6 +225,8 @@ export default function Admin() {
       <ErrorLogPanel />
 
       <InvoiceDeleteLogPanel />
+
+      <IncomingInvoiceDeleteLogPanel />
 
       <FailedSocialPostsPanel />
 
