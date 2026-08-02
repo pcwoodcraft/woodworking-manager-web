@@ -5,6 +5,7 @@ import { Spinner, ErrorBox } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import Modal from '../../components/Modal'
 import InvoiceSettingsPanel from './InvoiceSettingsPanel'
+import ProjectDefaultsPanel from './ProjectDefaultsPanel'
 import DiagnosticsPanel from './DiagnosticsPanel'
 import FailedTimeEntriesPanel from './FailedTimeEntriesPanel'
 import ErrorLogPanel from './ErrorLogPanel'
@@ -215,6 +216,8 @@ export default function Admin() {
         <h2>Fakturácia — firemné údaje</h2>
         <InvoiceSettingsPanel />
       </div>
+
+      <ProjectDefaultsPanel />
 
       <FailedTimeEntriesPanel />
 

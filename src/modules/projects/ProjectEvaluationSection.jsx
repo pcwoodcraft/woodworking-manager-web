@@ -14,6 +14,12 @@ export default function ProjectEvaluationSection({ evaluation, canSeeCosts, embe
   if (!evaluation || !evaluation.applicable) return null
 
   const incomplete = evaluation.incompletePayment
+  // F2/T10-01: mzdové náklady sú neúplné — marža vychádza vyššia, než je v skutočnosti.
+  // Percento sa v takom prípade zo servera vôbec nevracia (null); suma je len horný odhad.
+  const margeNeuplna = !!evaluation.marginDataIncomplete
+  const margeDovod = evaluation.marginDataIncompleteReason === 'no_rate'
+    ? 'Projekt nemá zadanú hodinovú sadzbu, takže odpracované hodiny sa do nákladov nezapočítali.'
+    : 'Niektoré záznamy hodín nemajú vyčíslený mzdový náklad, takže sa do nákladov nezapočítali.'
   const Wrapper = embedded ? 'div' : 'div'
   const className = embedded ? '' : 'card'
 
@@ -25,6 +31,12 @@ export default function ProjectEvaluationSection({ evaluation, canSeeCosts, embe
       {incomplete && (
         <p className="pill pill-warn" style={{ marginBottom: 12, display: 'inline-block' }}>
           Neúplné inkaso — finálna marža až po doplatku
+        </p>
+      )}
+
+      {canSeeCosts && margeNeuplna && (
+        <p className="pill pill-warn" style={{ marginBottom: 12, display: 'block' }}>
+          Neúplné mzdové náklady — marža nižšie je len horný odhad. {margeDovod}
         </p>
       )}
 
@@ -52,25 +64,27 @@ export default function ProjectEvaluationSection({ evaluation, canSeeCosts, embe
 
           <div className="stat-grid" style={{ marginTop: 16 }}>
             {incomplete ? (
-              <>
-                <Stat
-                  label="Očakávaná marža"
-                  value={fmtMoney(evaluation.expectedMarginNet)}
-                  sub={evaluation.expectedMarginPercent != null
+              <Stat
+                label={margeNeuplna ? 'Očakávaná marža (najviac)' : 'Očakávaná marža'}
+                value={fmtMoney(evaluation.expectedMarginNet)}
+                warn={margeNeuplna}
+                sub={margeNeuplna
+                  ? 'chýbajú mzdové náklady — skutočná je nižšia'
+                  : (evaluation.expectedMarginPercent != null
                     ? fmtPercent(evaluation.expectedMarginPercent) + ' voči zmluve'
-                    : '—'}
-                />
-              </>
+                    : '—')}
+              />
             ) : (
-              <>
-                <Stat
-                  label="Realizovaná marža"
-                  value={fmtMoney(evaluation.realizedMarginNet)}
-                  sub={evaluation.realizedMarginPercent != null
+              <Stat
+                label={margeNeuplna ? 'Realizovaná marža (najviac)' : 'Realizovaná marža'}
+                value={fmtMoney(evaluation.realizedMarginNet)}
+                warn={margeNeuplna}
+                sub={margeNeuplna
+                  ? 'chýbajú mzdové náklady — skutočná je nižšia'
+                  : (evaluation.realizedMarginPercent != null
                     ? fmtPercent(evaluation.realizedMarginPercent) + ' z inkasa'
-                    : '—'}
-                />
-              </>
+                    : '—')}
+              />
             )}
             <Stat
               label="Odchýlka hodín"
