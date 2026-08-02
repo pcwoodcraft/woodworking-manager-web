@@ -9,6 +9,7 @@ import { quoteStatusLabel, quoteTaxModeLabel } from './quoteConstants'
 import QuoteForm from './QuoteForm'
 import QuoteVisualizations from './QuoteVisualizations'
 import ConvertToProjectModal from '../projects/ConvertToProjectModal'
+import DeleteQuoteModal from './DeleteQuoteModal'
 
 export default function QuoteDetail() {
   const { id } = useParams()
@@ -21,6 +22,9 @@ export default function QuoteDetail() {
   const [pdfBusy, setPdfBusy] = useState(false)
   const [projectBusy, setProjectBusy] = useState(false)
   const [convertOpen, setConvertOpen] = useState(false)
+  const [zrusenieOpen, setZrusenieOpen] = useState(false)
+  const [zrusujem, setZrusujem] = useState(false)
+  const [chybaZrusenia, setChybaZrusenia] = useState('')
 
   const load = async () => {
     setState({ loading: true, error: null })
@@ -95,6 +99,7 @@ export default function QuoteDetail() {
 
   const q = data.quote
   const canProject = can('perm_projects_write') && q.status === 'prijata' && !q.projectId
+  const canDeleteQuote = can('perm_customers')
 
   return (
     <>
@@ -123,7 +128,40 @@ export default function QuoteDetail() {
         {q.projectId && (
           <Link className="btn btn-secondary" to={'/projekty/' + q.projectId}>Projekt {q.projectId}</Link>
         )}
+        {canDeleteQuote && !q.projectId && q.status !== 'zrusena' && (
+          <button type="button" className="btn btn-secondary"
+            onClick={() => { setChybaZrusenia(''); setZrusenieOpen(true) }}>
+            {q.pdfUrl ? 'Zrušiť ponuku' : 'Zmazať ponuku'}
+          </button>
+        )}
       </div>
+
+      {zrusenieOpen && (
+        <DeleteQuoteModal
+          quote={q}
+          saving={zrusujem}
+          serverError={chybaZrusenia}
+          onClose={() => { if (!zrusujem) { setZrusenieOpen(false); setChybaZrusenia('') } }}
+          onConfirm={async () => {
+            if (zrusujem) return
+            setZrusujem(true); setChybaZrusenia('')
+            try {
+              await apiCall('deleteQuote', { id })
+              const malaPdf = !!q.pdfUrl
+              // Ponuka s PDF sa nemaže, len sa preklopí do stavu Zrušená — preto sa zostáva
+              // na detaile a znova načíta; bez PDF riadok zmizne, takže sa vraciame do zoznamu.
+              toast(malaPdf ? 'Ponuka zrušená.' : 'Ponuka zmazaná.')
+              setZrusenieOpen(false)
+              if (malaPdf) await load()
+              else navigate('/zakaznici/ponuky')
+            } catch (e) {
+              setChybaZrusenia(e.message || 'Nepodarilo sa to.')
+            } finally {
+              setZrusujem(false)
+            }
+          }}
+        />
+      )}
 
       {convertOpen && (
         <ConvertToProjectModal
