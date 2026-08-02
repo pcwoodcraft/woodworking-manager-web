@@ -8,6 +8,7 @@ import InvoiceSettingsPanel from './InvoiceSettingsPanel'
 import DiagnosticsPanel from './DiagnosticsPanel'
 import FailedTimeEntriesPanel from './FailedTimeEntriesPanel'
 import ErrorLogPanel from './ErrorLogPanel'
+import InvoiceDeleteLogPanel from './InvoiceDeleteLogPanel'
 import RemindersEmailPanel from './RemindersEmailPanel'
 import SocialPostSettingsPanel from './SocialPostSettingsPanel'
 import FailedSocialPostsPanel from './FailedSocialPostsPanel'
@@ -18,6 +19,10 @@ const PERM_LABELS = {
   perm_projects_write: 'Projekty — úprava a zmena stavu',
   perm_invoices_full: 'Faktúry — celkový prehľad a správa',
   perm_invoices_add: 'Faktúry — vystavenie a úhrady k projektu',
+  // F5/T1-02: mazanie vydanej faktúry. Naraz ho môže mať len JEDEN aktívny používateľ —
+  // vynucuje to unikátny index v databáze, nie táto obrazovka. Pri pokuse prideliť ho
+  // druhému server vráti zrozumiteľnú hlášku.
+  perm_invoices_delete: 'Faktúry — mazanie (len jeden človek, nezvratné)',
   perm_costs_full: 'Náklady — celkový prehľad',
   perm_costs_add: 'Náklady — pridanie k projektu',
   perm_employees: 'Zamestnanci a mzdové údaje',
@@ -214,6 +219,8 @@ export default function Admin() {
       <FailedTimeEntriesPanel />
 
       <ErrorLogPanel />
+
+      <InvoiceDeleteLogPanel />
 
       <FailedSocialPostsPanel />
 
