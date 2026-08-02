@@ -7,6 +7,7 @@ import Modal from '../../components/Modal'
 import InvoiceSettingsPanel from './InvoiceSettingsPanel'
 import DiagnosticsPanel from './DiagnosticsPanel'
 import FailedTimeEntriesPanel from './FailedTimeEntriesPanel'
+import ErrorLogPanel from './ErrorLogPanel'
 import RemindersEmailPanel from './RemindersEmailPanel'
 import SocialPostSettingsPanel from './SocialPostSettingsPanel'
 import FailedSocialPostsPanel from './FailedSocialPostsPanel'
@@ -211,6 +212,8 @@ export default function Admin() {
       </div>
 
       <FailedTimeEntriesPanel />
+
+      <ErrorLogPanel />
 
       <FailedSocialPostsPanel />
 
