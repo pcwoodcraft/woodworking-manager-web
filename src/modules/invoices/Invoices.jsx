@@ -8,7 +8,14 @@ import CreateIssuedInvoiceForm, { TYPE_LABELS } from './CreateIssuedInvoiceForm'
 import InvoicePaymentModal from './InvoicePaymentModal'
 import DeleteInvoiceModal from './DeleteInvoiceModal'
 import DeleteIncomingInvoiceModal from './DeleteIncomingInvoiceModal'
+import CreditNoteModal from './CreditNoteModal'
+import CreditNoteRefundModal from './CreditNoteRefundModal'
 import { useAuth } from '../../auth/AuthContext'
+
+// Audit T1-02(b): opravné doklady sa v zozname musia dať odlíšiť. Do TYPE_LABELS
+// vo formulári vystavenia zámerne NEPATRIA — vystavujú sa vlastnou cestou.
+const CREDIT_NOTE_LABELS = { storno: 'Storno (rad D)', dobropis: 'Dobropis (rad D)' }
+const jeOpravnyDoklad = (inv) => inv.type === 'storno' || inv.type === 'dobropis'
 
 function displayInvoiceNumber(inv) {
   const n = inv.number || ''
@@ -179,6 +186,11 @@ export default function Invoices() {
   const [modal, setModal] = useState(null) // {type:'incoming',inv} | {type:'issued',inv} | 'new-issued'
   const [mazanie, setMazanie] = useState(null)   // vydaná faktúra, ktorá sa maže
   const [mazaniePrijatej, setMazaniePrijatej] = useState(null)   // prijatá faktúra, ktorá sa maže
+  // Audit T1-02(b) — opravné doklady.
+  const [opravaFaktury, setOpravaFaktury] = useState(null)   // faktúra, ku ktorej sa vystavuje doklad
+  const [vratenieDokladu, setVratenieDokladu] = useState(null) // dobropis, ku ktorému sa píše vrátenie
+  const [pracujem, setPracujem] = useState(false)
+  const [chybaOpravy, setChybaOpravy] = useState('')
   const [mazem, setMazem] = useState(false)
   const [chybaMazania, setChybaMazania] = useState('')
 
@@ -338,7 +350,7 @@ export default function Invoices() {
                         ? <a href={i.driveLink} target="_blank" rel="noreferrer">{displayInvoiceNumber(i)}</a>
                         : displayInvoiceNumber(i)}
                     </td>
-                    <td>{TYPE_LABELS[i.type] || i.type || '—'}</td>
+                    <td>{CREDIT_NOTE_LABELS[i.type] || TYPE_LABELS[i.type] || i.type || '—'}</td>
                     <td>{i.project}</td>
                     <td>{i.customer}</td>
                     <td>{fmtDate(i.issueDate)}</td>
@@ -360,6 +372,18 @@ export default function Invoices() {
                       {i.type === 'zalohova' && st === 'Uhradená' && !hasOstraForAdvance(data.invoices, i.id) && (
                         <button className="btn btn-sm btn-secondary" style={{ marginRight: 6 }}
                           onClick={() => createOstra(i)}>Ostrá faktúra</button>
+                      )}
+                      {/* Opravný doklad: nie k ostrej (tá zrkadlí zálohu), nie k inému opravnému
+                          dokladu a nie k už stornovanej faktúre. Server to isté vynucuje. */}
+                      {canInvoicesFull && !isOstra && !jeOpravnyDoklad(i) && st !== 'Stornovaná' && (
+                        <button className="btn btn-sm btn-secondary" style={{ marginRight: 6 }}
+                          onClick={() => { setChybaOpravy(''); setOpravaFaktury(i) }}>Opravný doklad</button>
+                      )}
+                      {/* Vrátenie peňazí sa eviduje len k dobropisu — storno smie len na
+                          neuhradenú faktúru, takže tam nikdy nie je čo vracať. */}
+                      {canInvoicesAdd && i.type === 'dobropis' && (
+                        <button className="btn btn-sm btn-secondary" style={{ marginRight: 6 }}
+                          onClick={() => { setChybaOpravy(''); setVratenieDokladu(i) }}>Vrátenie peňazí</button>
                       )}
                       <button className="icon-btn" title="Upraviť" onClick={() => setModal({ type: 'issued', inv: i })}>✎</button>
                       {canInvoicesDelete && (
@@ -394,6 +418,53 @@ export default function Invoices() {
               setChybaMazania(e.message || 'Zmazanie zlyhalo.')
             } finally {
               setMazem(false)
+            }
+          }}
+        />
+      )}
+
+      {opravaFaktury && (
+        <CreditNoteModal
+          invoice={opravaFaktury}
+          uhradene={opravaFaktury.status === 'Neuhradená' ? 0 : parseNum(opravaFaktury.amountNet ?? opravaFaktury.amount)}
+          saving={pracujem}
+          serverError={chybaOpravy}
+          onClose={() => { if (!pracujem) { setOpravaFaktury(null); setChybaOpravy('') } }}
+          onConfirm={async (data) => {
+            if (pracujem) return
+            setPracujem(true); setChybaOpravy('')
+            try {
+              const res = await apiCall('createCreditNote', { invoiceId: opravaFaktury.id, ...data })
+              toast('Vystavený doklad ' + (res?.invoice?.number || '') + '.')
+              setOpravaFaktury(null)
+              await load()
+            } catch (e) {
+              setChybaOpravy(e.message || 'Vystavenie zlyhalo.')
+            } finally {
+              setPracujem(false)
+            }
+          }}
+        />
+      )}
+
+      {vratenieDokladu && (
+        <CreditNoteRefundModal
+          note={vratenieDokladu}
+          saving={pracujem}
+          serverError={chybaOpravy}
+          onClose={() => { if (!pracujem) { setVratenieDokladu(null); setChybaOpravy('') } }}
+          onConfirm={async (data) => {
+            if (pracujem) return
+            setPracujem(true); setChybaOpravy('')
+            try {
+              await apiCall('addCreditNoteRefund', { creditNoteId: vratenieDokladu.id, ...data })
+              toast('Vrátenie zaznamenané — inkaso projektu sa znížilo.')
+              setVratenieDokladu(null)
+              await load()
+            } catch (e) {
+              setChybaOpravy(e.message || 'Zápis zlyhal.')
+            } finally {
+              setPracujem(false)
             }
           }}
         />
