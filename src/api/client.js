@@ -22,7 +22,10 @@ export class ApiError extends Error {
 async function rawCall(action, payload) {
   const res = await fetch(API_URL, {
     method: 'POST',
-    // text/plain => prehliadač neposiela CORS preflight, Apps Script ho nevie obslúžiť
+    // text/plain => „simple request", takže prehliadač neposiela CORS preflight a odpadá jeden
+    // round trip. Pôvodným dôvodom bolo, že Apps Script preflight nevie obslúžiť; po prepnutí
+    // na priamu edge URL (3. 8. 2026) je dôvodom už len rýchlosť — edge preflight zvláda, ale
+    // nevyžadovať ho je lacnejšie. Edge parser text/plain prijíma zámerne.
     headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify({ token: getToken(), action, payload }),
   })

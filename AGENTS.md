@@ -18,9 +18,14 @@ Live overview & roadmap: `../woodworking-manager-stav-a-plan.md` ·
   feature needs a new/changed action, the backend must be implemented and deployed **before** the
   frontend push. (`../woodworking-manager-gas/src/Actions.js` is dead pre-migration code — do not
   use it as the contract.)
-- **Requests still go through the old Apps Script URL, which proxies to the edge function.**
-  `src/config.js` → GAS `/exec` → Supabase. That extra hop is intentional for now; switching
-  `config.js` to the edge URL directly is a planned, separate change.
+- **Requests go DIRECTLY to the Supabase edge function** (since 3. 8. 2026). The old Apps Script
+  `/exec` hop was a pure passthrough that cost **~3 s per call** (Apps Script start + second TLS
+  hop from Google to Supabase + a 302 to `script.googleusercontent.com` for the body). Measured
+  on production: proxy 2,8–3,5 s, direct 0,27 s.
+  The Apps Script proxy **stays alive** — the photo PWA still points at it. Workshop tablets have
+  used the direct edge URL since 1.5.0.
+  Edge returns **HTTP 200 with `{ok:false}`** for business errors, exactly like the proxy did, so
+  error handling in `client.js` is unchanged. CORS on the edge is `*` and preflight works.
 - **`Content-Type: text/plain` in `src/api/client.js` is intentional.** It avoids the CORS
   preflight that Apps Script cannot handle, and the edge parser accepts text bodies on purpose.
   Never "fix" it to `application/json` — the app would stop working.
