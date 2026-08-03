@@ -2,6 +2,7 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './auth/AuthContext'
 import LoginScreen from './auth/LoginScreen'
 import RequirePerm from './auth/RequirePerm'
+import RequireModule from './auth/RequireModule'
 import Layout from './components/Layout'
 import { Spinner } from './components/ui'
 import Dashboard from './modules/dashboard/Dashboard'
@@ -38,28 +39,30 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Dashboard />} />
+          {/* /zakaznici je jadro (kartotéka), ale jeho deti sa delia medzi CRM a Cenové ponuky. */}
           <Route path="zakaznici" element={<RequirePerm perm="perm_customers"><CustomersLayout /></RequirePerm>}>
             <Route index element={<CustomersList />} />
-            <Route path="novy-dopyt" element={<QuickDealForm />} />
-            <Route path="pipeline" element={<Pipeline />} />
-            <Route path="dnes" element={<CrmToday />} />
-            <Route path="prehlad" element={<CrmOverview />} />
-            <Route path="ponuky" element={<QuotesList />} />
-            <Route path="ponuky/nova" element={<><header className="page-head"><h1>Nová cenová ponuka</h1></header><QuoteForm /></>} />
-            <Route path="ponuky/:id" element={<QuoteDetail />} />
+            <Route path="novy-dopyt" element={<RequireModule module="crm"><QuickDealForm /></RequireModule>} />
+            <Route path="pipeline" element={<RequireModule module="crm"><Pipeline /></RequireModule>} />
+            <Route path="dnes" element={<RequireModule module="crm"><CrmToday /></RequireModule>} />
+            <Route path="prehlad" element={<RequireModule module="crm"><CrmOverview /></RequireModule>} />
+            <Route path="ponuky" element={<RequireModule module="quotes"><QuotesList /></RequireModule>} />
+            <Route path="ponuky/nova" element={<RequireModule module="quotes"><><header className="page-head"><h1>Nová cenová ponuka</h1></header><QuoteForm /></></RequireModule>} />
+            <Route path="ponuky/:id" element={<RequireModule module="quotes"><QuoteDetail /></RequireModule>} />
             <Route path=":id" element={<CustomerDetail />} />
           </Route>
-          <Route path="atelier" element={<RequirePerm perm="perm_customers"><AtelierPage /></RequirePerm>} />
-          <Route path="projekty" element={<RequirePerm perm="perm_projects_read"><Projects /></RequirePerm>} />
-          <Route path="projekty/:id" element={<RequirePerm perm="perm_projects_read"><ProjectDetail /></RequirePerm>} />
-          <Route path="dielna" element={<RequirePerm perm="perm_projects_read"><Workshop /></RequirePerm>} />
-          <Route path="faktury" element={<RequirePerm perm="perm_invoices_full"><Invoices /></RequirePerm>} />
-          <Route path="ekonomika" element={<RequirePerm perm="perm_costs_full"><Costs /></RequirePerm>} />
+          <Route path="atelier" element={<RequireModule module="quotes"><RequirePerm perm="perm_customers"><AtelierPage /></RequirePerm></RequireModule>} />
+          <Route path="projekty" element={<RequireModule module="projects"><RequirePerm perm="perm_projects_read"><Projects /></RequirePerm></RequireModule>} />
+          <Route path="projekty/:id" element={<RequireModule module="projects"><RequirePerm perm="perm_projects_read"><ProjectDetail /></RequirePerm></RequireModule>} />
+          <Route path="dielna" element={<RequireModule module="workshop"><RequirePerm perm="perm_projects_read"><Workshop /></RequirePerm></RequireModule>} />
+          <Route path="faktury" element={<RequireModule module="invoicing"><RequirePerm perm="perm_invoices_full"><Invoices /></RequirePerm></RequireModule>} />
+          <Route path="ekonomika" element={<RequireModule module="finance"><RequirePerm perm="perm_costs_full"><Costs /></RequirePerm></RequireModule>} />
+          {/* Presmerovanie ostáva nechránené — cieľ /ekonomika už stráž modulu má. */}
           <Route path="naklady" element={<Navigate to="/ekonomika" replace />} />
-          <Route path="statistiky" element={<RequirePerm perm="perm_costs_full"><PricingStats /></RequirePerm>} />
-          <Route path="socialne-siete" element={<RequirePerm perm="perm_social"><SocialPostsPage /></RequirePerm>} />
-          <Route path="socialne-siete/:id" element={<RequirePerm perm="perm_social"><SocialPostDetail /></RequirePerm>} />
-          <Route path="zamestnanci" element={<RequirePerm perm="perm_employees"><Employees /></RequirePerm>} />
+          <Route path="statistiky" element={<RequireModule module="stats"><RequirePerm perm="perm_costs_full"><PricingStats /></RequirePerm></RequireModule>} />
+          <Route path="socialne-siete" element={<RequireModule module="marketing"><RequirePerm perm="perm_social"><SocialPostsPage /></RequirePerm></RequireModule>} />
+          <Route path="socialne-siete/:id" element={<RequireModule module="marketing"><RequirePerm perm="perm_social"><SocialPostDetail /></RequirePerm></RequireModule>} />
+          <Route path="zamestnanci" element={<RequireModule module="employees"><RequirePerm perm="perm_employees"><Employees /></RequirePerm></RequireModule>} />
           <Route path="administracia" element={<RequirePerm perm="perm_admin"><Admin /></RequirePerm>} />
           <Route path="*" element={<div className="page"><h1>Stránka neexistuje</h1></div>} />
         </Route>
