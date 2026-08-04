@@ -1,10 +1,7 @@
-export const QUOTE_STATUSES = [
-  { value: 'koncept', label: 'Koncept' },
-  { value: 'odoslana', label: 'Odoslaná' },
-  { value: 'prijata', label: 'Prijatá' },
-  { value: 'zamietnuta', label: 'Zamietnutá' },
-  { value: 'zrusena', label: 'Zrušená' },
-]
+// Stavy ponuky a ich popisky sú definované v `src/shared/quoteStatusLabel.js` — potrebuje ich aj
+// CRM (detail dopytu) a to kvôli nim nesmie staticky ťahať modul ponúk. Tu sa len re-exportujú,
+// aby importy vnútri modulu `quotes` zostali nezmenené.
+export { QUOTE_STATUSES, quoteStatusLabel } from '../../shared/quoteStatusLabel'
 
 export const QUOTE_LANGUAGES = [
   { value: 'SK', label: 'Slovenčina' },
@@ -23,10 +20,6 @@ export const QUOTE_TERMS_TEMPLATES = [
 ]
 
 export const QUOTE_UNITS = ['ks', 'm', 'm²', 'bm', 'hod']
-
-export function quoteStatusLabel(status) {
-  return QUOTE_STATUSES.find(s => s.value === status)?.label || status || '—'
-}
 
 export function quoteTaxModeLabel(mode) {
   return QUOTE_TAX_MODES.find(m => m.value === mode)?.label || mode || '—'

@@ -3,7 +3,6 @@ import Modal from '../../components/Modal'
 import { useToast } from '../../components/Toast'
 import { apiCall } from '../../api/client'
 import { fmtMoney, fmtDate, parseNum } from '../../utils/format'
-import CreateIssuedInvoiceForm from '../invoices/CreateIssuedInvoiceForm'
 
 // Ručné pridávanie nákladov a faktúr ku konkrétnemu projektu (zadanie 6.4.3).
 
@@ -121,12 +120,6 @@ export function IncomingInvoiceForm({ project, onClose, onSaved }) {
         <label className="field span-2"><span>Poznámky</span><textarea rows={2} value={f.notes} onChange={set('notes')} /></label>
       </div>
     </Modal>
-  )
-}
-
-export function IssuedInvoiceForm({ project, onClose, onSaved }) {
-  return (
-    <CreateIssuedInvoiceForm project={project} onClose={onClose} onSaved={onSaved} />
   )
 }
 

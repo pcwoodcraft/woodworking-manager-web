@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Modal from '../../components/Modal'
-import { LOST_REASONS } from './crmConstants'
+import { LOST_REASONS } from '../../shared/lostReasons'
 
 export default function LostReasonModal({ onClose, onConfirm, saving }) {
   const [reason, setReason] = useState('')

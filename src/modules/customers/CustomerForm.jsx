@@ -4,7 +4,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { useToast } from '../../components/Toast'
 import Modal from '../../components/Modal'
 import { toIsoDate } from '../../utils/format'
-import { CUSTOMER_TYPES, CUSTOMER_STATUSES } from './crmConstants'
+import { CUSTOMER_TYPES, CUSTOMER_STATUSES } from './customerConstants'
 import SalesOwnerSelect from './SalesOwnerSelect'
 
 export default function CustomerForm({ customer, onClose, onSaved }) {

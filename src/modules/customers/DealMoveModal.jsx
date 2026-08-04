@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Modal from '../../components/Modal'
-import { ACTIVITY_TYPES } from './crmConstants'
+import { ACTIVITY_TYPES } from '../crm/crmConstants'
 
 export default function DealMoveModal({ title = 'Čo sa stalo?', saving, confirmDisabled = false, onClose, onConfirm, children }) {
   const [f, setF] = useState({ type: 'telefon', outcome: '', notes: '', nextStep: '', followUpDate: '' })
