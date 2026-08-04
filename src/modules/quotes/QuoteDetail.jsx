@@ -73,7 +73,7 @@ export default function QuoteDetail() {
 
   if (mode === 'edit') {
     if (state.loading) return <Spinner label="Načítava sa…" />
-    if (state.error) return <ErrorBox message={state.error} onRetry={load} />
+    if (state.error) return <ErrorBox error={state.error} onRetry={load} />
     return (
       <>
         <header className="page-head">
@@ -97,7 +97,7 @@ export default function QuoteDetail() {
   }
 
   if (state.loading) return <Spinner label="Načítava sa…" />
-  if (state.error) return <ErrorBox message={state.error} onRetry={load} />
+  if (state.error) return <ErrorBox error={state.error} onRetry={load} />
   if (!data) return null
 
   const q = data.quote

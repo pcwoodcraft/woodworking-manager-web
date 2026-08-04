@@ -57,7 +57,7 @@ export default function SocialPostsPage() {
   const open = (id) => navigate(`/socialne-siete/${id}`)
 
   if (loading) return <Spinner label="Načítavam príspevky…" />
-  if (error) return <ErrorBox message={error} onRetry={load} />
+  if (error) return <ErrorBox error={error} onRetry={load} />
 
   return (
     <div className="page">

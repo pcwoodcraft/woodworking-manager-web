@@ -176,7 +176,7 @@ export default function AtelierPage() {
   }
 
   if (state.loading) return <div className="page"><Spinner label="Načítava sa…" /></div>
-  if (state.error) return <div className="page"><ErrorBox message={state.error} /></div>
+  if (state.error) return <div className="page"><ErrorBox error={state.error} /></div>
 
   return (
     <div className="page page-wide">

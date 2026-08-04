@@ -35,7 +35,7 @@ export default function QuotesList() {
   })
 
   if (state.loading) return <Spinner label="Načítava sa…" />
-  if (state.error) return <ErrorBox message={state.error} onRetry={load} />
+  if (state.error) return <ErrorBox error={state.error} onRetry={load} />
 
   return (
     <>
