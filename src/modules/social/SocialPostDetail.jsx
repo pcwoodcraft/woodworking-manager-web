@@ -70,7 +70,7 @@ export default function SocialPostDetail() {
   }
 
   if (loading) return <Spinner label="Načítavam…" />
-  if (error) return <ErrorBox message={error} onRetry={load} />
+  if (error) return <ErrorBox error={error} onRetry={load} />
   if (!detail) return null
 
   const st = detail.post.status
