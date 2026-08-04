@@ -1,3 +1,7 @@
+// LOST_REASONS žije v `src/shared/lostReasons.js` — číselník potrebuje aj modul projektov
+// (zrušenie projektu) a ten kvôli nemu nesmie staticky ťahať CRM.
+import { LOST_REASONS } from '../../shared/lostReasons'
+
 export const DEAL_PHASES = [
   { value: 'novy_dopyt', label: 'Nový dopyt' },
   { value: 'kvalifikacia', label: 'Kvalifikácia' },
@@ -119,15 +123,6 @@ export function customerTypeLabel(code) {
 export function customerStatusLabel(code) {
   return CUSTOMER_STATUSES.find(s => s.value === code)?.label || code || '—'
 }
-
-export const LOST_REASONS = [
-  { value: 'cena', label: 'Cena' },
-  { value: 'termin', label: 'Termín' },
-  { value: 'konkurencia', label: 'Konkurencia' },
-  { value: 'nereaguje', label: 'Klient nereaguje' },
-  { value: 'nerealny', label: 'Nereálny dopyt' },
-  { value: 'ine', label: 'Iné' },
-]
 
 export const STALE_DAYS = 7
 

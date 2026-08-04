@@ -7,7 +7,7 @@ import { fmtMoney, parseNum } from '../../utils/format'
 import { KANBAN_COLUMNS, STALE_DAYS, isDealOpen, dealKanbanColumn, isProductionDealPhase } from './crmConstants'
 import DealDetailModal from './DealDetailModal'
 import DealMoveModal from './DealMoveModal'
-import { LOST_REASONS } from './crmConstants'
+import { LOST_REASONS } from '../../shared/lostReasons'
 
 function dealColumn(deal) {
   return dealKanbanColumn(deal)

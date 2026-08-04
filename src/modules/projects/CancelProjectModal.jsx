@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Modal from '../../components/Modal'
-import { LOST_REASONS } from '../customers/crmConstants'
+import { LOST_REASONS } from '../../shared/lostReasons'
 
 // F6/T1-01 — zrušenie projektu, ktorý má naviazaný dopyt.
 //

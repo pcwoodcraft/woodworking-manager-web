@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { apiCall } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
@@ -8,14 +8,17 @@ import { fmtDate, fmtMoney } from '../../utils/format'
 import { quoteStatusLabel, quoteTaxModeLabel } from './quoteConstants'
 import QuoteForm from './QuoteForm'
 import QuoteVisualizations from './QuoteVisualizations'
-import ConvertToProjectModal from '../projects/ConvertToProjectModal'
 import DeleteQuoteModal from './DeleteQuoteModal'
+
+// Modál patrí modulu projektov — načíta sa až keď ho používateľ naozaj otvorí, aby balík ponúk
+// neobsahoval kód projektov (fáza 2b, Úloha C0).
+const ConvertToProjectModal = lazy(() => import('../projects/ConvertToProjectModal'))
 
 export default function QuoteDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
-  const { can } = useAuth()
+  const { can, hasModule } = useAuth()
   const [mode, setMode] = useState('view')
   const [state, setState] = useState({ loading: true, error: null })
   const [data, setData] = useState(null)
@@ -99,6 +102,10 @@ export default function QuoteDetail() {
 
   const q = data.quote
   const canProject = can('perm_projects_write') && q.status === 'prijata' && !q.projectId
+  // Modul sa k právu PRIDÁVA, nenahrádza ho: bez `perm_projects_write` sa prevod nedá spustiť ani
+  // pri zapnutom module. `mozePreviest` drží aj tlačidlo, aj render — inak by React stiahol chunk
+  // projektov len preto, že sa dá otvoriť stav `convertOpen`.
+  const mozePreviest = canProject && hasModule('projects')
   const canDeleteQuote = can('perm_customers')
 
   return (
@@ -120,7 +127,7 @@ export default function QuoteDetail() {
         {q.pdfUrl && (
           <a className="btn btn-secondary" href={q.pdfUrl} target="_blank" rel="noreferrer">Otvoriť PDF</a>
         )}
-        {canProject && (
+        {mozePreviest && (
           <button type="button" className="btn" onClick={() => setConvertOpen(true)} disabled={projectBusy}>
             {projectBusy ? 'Vytvára sa…' : 'Vytvoriť projekt'}
           </button>
@@ -163,14 +170,16 @@ export default function QuoteDetail() {
         />
       )}
 
-      {convertOpen && (
-        <ConvertToProjectModal
-          title="Vytvoriť projekt z ponuky"
-          popis={'Z ponuky ' + (q.id || id) + ' vznikne nový projekt vrátane ceny a priečinka na Drive.'}
-          busy={projectBusy}
-          onClose={() => setConvertOpen(false)}
-          onConfirm={convertProject}
-        />
+      {mozePreviest && convertOpen && (
+        <Suspense fallback={<Spinner label="Načítavam…" />}>
+          <ConvertToProjectModal
+            title="Vytvoriť projekt z ponuky"
+            popis={'Z ponuky ' + (q.id || id) + ' vznikne nový projekt vrátane ceny a priečinka na Drive.'}
+            busy={projectBusy}
+            onClose={() => setConvertOpen(false)}
+            onConfirm={convertProject}
+          />
+        </Suspense>
       )}
 
       {q.pdfStale && q.pdfUrl && (

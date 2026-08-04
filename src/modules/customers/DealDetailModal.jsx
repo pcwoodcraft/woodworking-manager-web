@@ -1,26 +1,30 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { apiCall } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import { useToast } from '../../components/Toast'
 import Modal from '../../components/Modal'
-import { StatusBadge } from '../../components/ui'
+import { Spinner, StatusBadge } from '../../components/ui'
 import { fmtDate, fmtMoney, fmtPercent } from '../../utils/format'
 import {
-  DEAL_PHASES, LOST_REASONS, STALE_DAYS, sourceLabel,
+  DEAL_PHASES, STALE_DAYS, sourceLabel,
   canConvertDealToProject, quoteLinkStatusLabel, QUOTE_LINK_STATUSES,
 } from './crmConstants'
-import ConvertToProjectModal from '../projects/ConvertToProjectModal'
-import { quoteStatusLabel } from '../quotes/quoteConstants'
+import { LOST_REASONS } from '../../shared/lostReasons'
+import { quoteStatusLabel } from '../../shared/quoteStatusLabel'
 import SalesOwnerSelect from './SalesOwnerSelect'
-import ProjectEvaluationSection from '../projects/ProjectEvaluationSection'
 import { fileToBase64, newClientFileId } from '../../utils/files'
 import DealMoveModal from './DealMoveModal'
+
+// Oba komponenty patria modulu projektov — načítajú sa až keď ich používateľ naozaj potrebuje,
+// aby CRM balík neobsahoval kód projektov (fáza 2b, Úloha C0).
+const ConvertToProjectModal = lazy(() => import('../projects/ConvertToProjectModal'))
+const ProjectEvaluationSection = lazy(() => import('../projects/ProjectEvaluationSection'))
 
 export default function DealDetailModal({ dealId, onClose, onUpdated }) {
   const toast = useToast()
   const navigate = useNavigate()
-  const { can } = useAuth()
+  const { can, hasModule } = useAuth()
   const canWriteProject = can('perm_projects_write')
   const canSeeCosts = can('perm_costs_add') || can('perm_costs_full')
   const [loading, setLoading] = useState(true)
@@ -256,7 +260,8 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
   }
 
   const { deal, quotes = [], quoteLinks, project, summary, evaluation, paymentSummary, invoices } = data
-  const showConvert = canWriteProject && canConvertDealToProject(deal)
+  // Modul sa k právu PRIDÁVA, nenahrádza ho — `canWriteProject` zostáva podmienkou.
+  const showConvert = canWriteProject && canConvertDealToProject(deal) && hasModule('projects')
 
   const quoteAmount = (q) => {
     if (q.taxMode === 'REVERSE_CHARGE') return fmtMoney(q.totalNet)
@@ -380,9 +385,11 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
               <div><span className="muted">Zostáva</span><div>{fmtMoney(paymentSummary.remainingNet)}</div></div>
             </div>
           )}
-          {evaluation && String(project.status) === 'odovzdany' && (
+          {evaluation && String(project.status) === 'odovzdany' && hasModule('projects') && (
             <div style={{ marginTop: 12 }}>
-              <ProjectEvaluationSection evaluation={evaluation} canSeeCosts={canSeeCosts} embedded />
+              <Suspense fallback={<Spinner label="Načítavam…" />}>
+                <ProjectEvaluationSection evaluation={evaluation} canSeeCosts={canSeeCosts} embedded />
+              </Suspense>
             </div>
           )}
           {project.driveFolderUrl && (
@@ -515,14 +522,16 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
         </p>
       )}
 
-      {convertOpen && (
-        <ConvertToProjectModal
-          title="Vytvoriť projekt z dopytu"
-          popis={'Dopyt sa prepojí s novým projektom vo fáze Príprava. Po-predaj (uzavreté) nastaví až odovzdanie projektu.'}
-          busy={saving}
-          onClose={() => setConvertOpen(false)}
-          onConfirm={convertToProject}
-        />
+      {showConvert && convertOpen && (
+        <Suspense fallback={<Spinner label="Načítavam…" />}>
+          <ConvertToProjectModal
+            title="Vytvoriť projekt z dopytu"
+            popis={'Dopyt sa prepojí s novým projektom vo fáze Príprava. Po-predaj (uzavreté) nastaví až odovzdanie projektu.'}
+            busy={saving}
+            onClose={() => setConvertOpen(false)}
+            onConfirm={convertToProject}
+          />
+        </Suspense>
       )}
     </Modal>
   )
