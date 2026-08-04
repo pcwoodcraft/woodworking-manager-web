@@ -4,7 +4,7 @@ import { apiCall } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox } from '../../components/ui'
 import { fmtDate, fmtMoney } from '../../utils/format'
-import { DEAL_PHASES, lostReasonLabel, phaseLabel } from './crmConstants'
+import { DEAL_PHASES, lostReasonLabel, phaseLabel } from '../crm/crmConstants'
 
 function FunnelBar({ phase, count, maxCount, value }) {
   const pct = maxCount > 0 ? Math.round((count / maxCount) * 100) : 0

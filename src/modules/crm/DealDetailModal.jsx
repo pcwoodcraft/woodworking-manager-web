@@ -12,9 +12,9 @@ import {
 } from './crmConstants'
 import { LOST_REASONS } from '../../shared/lostReasons'
 import { quoteStatusLabel } from '../../shared/quoteStatusLabel'
-import SalesOwnerSelect from './SalesOwnerSelect'
+import SalesOwnerSelect from '../customers/SalesOwnerSelect'
 import { fileToBase64, newClientFileId } from '../../utils/files'
-import DealMoveModal from './DealMoveModal'
+import DealMoveModal from '../customers/DealMoveModal'
 
 // Oba komponenty patria modulu projektov — načítajú sa až keď ich používateľ naozaj potrebuje,
 // aby CRM balík neobsahoval kód projektov (fáza 2b, Úloha C0).

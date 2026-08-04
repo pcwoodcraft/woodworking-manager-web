@@ -3,13 +3,7 @@ import Modal from '../../components/Modal'
 import { useToast } from '../../components/Toast'
 import { apiCall } from '../../api/client'
 import { fmtMoney, parseNum, toIsoDate } from '../../utils/format'
-
-const TYPE_LABELS = {
-  faktura: 'Faktúra (rad F)',
-  zalohova: 'Zálohová faktúra (rad Z)',
-  dokoncova: 'Dofakturácia (rad F)',
-  ostra: 'Ostrá faktúra (rad F)',
-}
+import { TYPE_LABELS } from '../../shared/invoiceTypeLabels'
 
 const emptyItem = () => ({ description: '', quantity: '1', unit: 'ks', unitPriceNet: '' })
 

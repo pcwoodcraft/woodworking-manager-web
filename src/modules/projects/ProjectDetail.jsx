@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { apiCall } from '../../api/client'
 import { loadBundle, section } from '../../api/bundle'
@@ -10,8 +10,9 @@ import { useToast } from '../../components/Toast'
 import Modal from '../../components/Modal'
 import ProjectForm from './ProjectForm'
 import { MaterialForm, IncomingInvoiceForm, AssignInvoiceModal } from './CostForms'
-import CreateIssuedInvoiceForm, { TYPE_LABELS } from '../invoices/CreateIssuedInvoiceForm'
-import InvoicePaymentModal from '../invoices/InvoicePaymentModal'
+// Popisky typov faktúr sú obyčajný číselník v `shared/` — kvôli nemu netreba ťahať modul
+// fakturácie. Samotné formuláre sú lenivé (fáza 2b, Úloha C2, Krok 3b).
+import { TYPE_LABELS } from '../../shared/invoiceTypeLabels'
 
 function displayInvoiceNumber(inv) {
   const n = inv.number || ''
@@ -30,6 +31,9 @@ import {
   PROJECT_STATUSES, normalizeStatus, statusLabel, budgetLevel,
   projectPriceGross,
 } from '../../utils/format'
+
+const CreateIssuedInvoiceForm = lazy(() => import('../invoices/CreateIssuedInvoiceForm'))
+const InvoicePaymentModal = lazy(() => import('../invoices/InvoicePaymentModal'))
 
 const CONFIRM_STATUSES = {
   zruseny: 'Naozaj označiť projekt ako zrušený?',
@@ -229,11 +233,14 @@ function BudgetOverview({ summary, project }) {
 export default function ProjectDetail() {
   const { id } = useParams()
   const toast = useToast()
-  const { can, expectedSections, refreshBootstrap } = useAuth()
+  const { can, hasModule, expectedSections, refreshBootstrap } = useAuth()
   const canWrite = can('perm_projects_write')
   const canHours = can('perm_timesheets')
-  const canInvoicesFull = can('perm_invoices_full')
-  const canInvoicesAdd = can('perm_invoices_add')
+  // Modul sa k právu PRIDÁVA, nenahrádza ho — pôvodné `can('perm_invoices_*')` zostáva podmienkou.
+  // Brána je tu, pri odvodení práv, nie na jednotlivých tlačidlách: spúšťač aj render tak visia
+  // na tej istej premennej a nemôžu sa rozísť (fáza 2b, Úloha C2, Krok 3b).
+  const canInvoicesFull = can('perm_invoices_full') && hasModule('invoicing')
+  const canInvoicesAdd = can('perm_invoices_add') && hasModule('invoicing')
   const canCostsAdd = can('perm_costs_add')
   const canSeeCosts = can('perm_costs_add') || can('perm_costs_full')
   const canFiles = can('perm_files')
@@ -800,21 +807,25 @@ export default function ProjectDetail() {
         />
       )}
       {modal === 'incoming' && <IncomingInvoiceForm project={project} onClose={() => setModal(null)} onSaved={closeAndReload} />}
-      {modal === 'issued' && (
-        <CreateIssuedInvoiceForm
-          project={project}
-          customers={data.customers}
-          initialLanguage={invoiceLang}
-          onClose={() => setModal(null)}
-          onSaved={closeAndReload}
-        />
+      {canInvoicesAdd && modal === 'issued' && (
+        <Suspense fallback={<Spinner label="Načítavam…" />}>
+          <CreateIssuedInvoiceForm
+            project={project}
+            customers={data.customers}
+            initialLanguage={invoiceLang}
+            onClose={() => setModal(null)}
+            onSaved={closeAndReload}
+          />
+        </Suspense>
       )}
-      {modal?.type === 'invoicePayment' && (
-        <InvoicePaymentModal
-          invoice={modal.inv}
-          onClose={() => setModal(null)}
-          onSaved={closeAndReload}
-        />
+      {canInvoicesAdd && modal?.type === 'invoicePayment' && (
+        <Suspense fallback={<Spinner label="Načítavam…" />}>
+          <InvoicePaymentModal
+            invoice={modal.inv}
+            onClose={() => setModal(null)}
+            onSaved={closeAndReload}
+          />
+        </Suspense>
       )}
       {modal?.type === 'projectPayment' && (
         <ProjectManualPaymentModal project={project} paymentSummary={paymentSummary} onClose={() => setModal(null)} onSaved={closeAndReload} />

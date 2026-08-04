@@ -5,9 +5,9 @@ import { useAuth } from '../../auth/AuthContext'
 import { Spinner, ErrorBox } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import { fmtDate, fmtMoney } from '../../utils/format'
-import { phaseLabel } from './crmConstants'
-import CrmTaskModal from './CrmTaskModal'
-import DealDetailModal from './DealDetailModal'
+import { phaseLabel } from '../crm/crmConstants'
+import CrmTaskModal from '../crm/CrmTaskModal'
+import DealDetailModal from '../crm/DealDetailModal'
 import OperationalAlertsSection from '../../components/OperationalAlertsSection'
 
 function Section({ title, empty, children }) {

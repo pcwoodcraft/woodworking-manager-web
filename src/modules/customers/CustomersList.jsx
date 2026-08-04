@@ -7,7 +7,7 @@ import { Spinner, ErrorBox } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import { fmtDate, fmtMoney } from '../../utils/format'
 import CustomerForm from './CustomerForm'
-import { customerStatusLabel, customerTypeLabel } from './crmConstants'
+import { customerStatusLabel, customerTypeLabel } from './customerConstants'
 
 export default function CustomersList() {
   const toast = useToast()
