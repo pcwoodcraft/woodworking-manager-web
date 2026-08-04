@@ -43,12 +43,15 @@ export async function loadBundle(action, payload, { expectedSections, refreshBoo
   return bundle
 }
 
-// Pohodlný prístup k sekcii: vráti { ok, denied, error, data }.
+// Pohodlný prístup k sekcii: vráti { ok, denied, disabled, error, data }.
 export function section(bundle, name) {
   const s = bundle?.sections?.[name] || null
   return {
     ok: s?.status === 'ok',
-    denied: !s || s.status === 'denied',
+    // 'disabled' = modul nie je v inštancii aktívny; widget sa skryje rovnako ako pri 'denied',
+    // takže existujúce obrazovky nepotrebujú zmenu. `disabled` je tu pre tie, ktoré chcú rozlíšiť.
+    denied: !s || s.status === 'denied' || s.status === 'disabled',
+    disabled: s?.status === 'disabled',
     error: s?.status === 'error',
     data: s?.status === 'ok' ? s.data : null,
   }

@@ -170,6 +170,14 @@ export function AuthProvider({ children }) {
 
   const can = useCallback((perm) => !!me?.perms?.[perm], [me])
 
+  // Aktívne moduly inštancie (fáza 1 modularizácie). Kým bootstrap nedobehne — alebo kým
+  // beží starší backend, ktorý `modules` ešte nevracia — tvárime sa, že modul je aktívny.
+  // Inak by menu pri načítaní preblikávalo a starý backend by schoval celú appku.
+  const hasModule = useCallback(
+    (code) => !bootstrap?.modules || bootstrap.modules.includes(code),
+    [bootstrap]
+  )
+
   // Obnova bootstrapu po 'denied' na očakávanej sekcii (viď api/bundle.js).
   // Vráti čerstvé expectedSections, aby volajúci vedel rozhodnúť o refetchi.
   const refreshBootstrap = useCallback(async () => {
@@ -180,7 +188,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   const value = {
-    status, expired, me, can, signOut, gisReady, loginError,
+    status, expired, me, can, hasModule, signOut, gisReady, loginError,
     expectedSections: bootstrap?.expectedSections || null,
     settings: bootstrap?.settings || null,
     refreshBootstrap,
