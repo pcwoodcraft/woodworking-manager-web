@@ -80,12 +80,15 @@ export default function CustomerDetail() {
   const toast = useToast()
   const { can, hasModule } = useAuth()
   const isAdmin = can('perm_admin')
+  // Rovnaké právo, aké vyžaduje akcia na serveri (`perm/permMap.ts:257`).
+  const canCustomers = can('perm_customers')
   const [state, setState] = useState({ loading: true, error: null })
   const [data, setData] = useState(null)
   const [editCustomer, setEditCustomer] = useState(false)
   // Jadrový `modal` rieši už len kontaktné osoby — dopyt/aktivita/úloha/reklamácia majú
   // vlastný stav vnútri `CustomerCrmSections`.
   const [modal, setModal] = useState(null)
+  const [creatingFolder, setCreatingFolder] = useState(false)
 
   const load = async () => {
     setState({ loading: true, error: null })
@@ -98,6 +101,21 @@ export default function CustomerDetail() {
   }
 
   useEffect(() => { load() }, [id])
+
+  // Zákazník, ktorý priečinok nikdy nedostal, ho cez UI nemal ako získať — akciu nevolalo
+  // nič vo webe (zistené pri cutovere fázy 3a, 12. 8. 2026). Vzor je `ProjectFilesTab`.
+  const createFolder = async () => {
+    setCreatingFolder(true)
+    try {
+      const res = await apiCall('ensureCustomerFolder', { customerId: id })
+      toast(res.created ? 'Priečinok vytvorený na Drive' : 'Priečinok už existuje')
+      await load()
+    } catch (e) {
+      toast('Nepodarilo sa vytvoriť priečinok: ' + e.message, 'err')
+    } finally {
+      setCreatingFolder(false)
+    }
+  }
 
   const deleteContact = async (contactId) => {
     if (!window.confirm('Odstrániť kontakt?')) return
@@ -184,10 +202,21 @@ export default function CustomerDetail() {
               <div><span className="muted">Splatnosť</span><div>{customer.paymentTermsDays ? customer.paymentTermsDays + ' dní' : '—'}</div></div>
             </>
           )}
-          {customer.driveFolderUrl && (
+          {(customer.driveFolderUrl || canCustomers) && (
             <div className="span-2">
               <span className="muted">Drive</span>
-              <div><a href={customer.driveFolderUrl} target="_blank" rel="noreferrer">Priečinok zákazníka</a></div>
+              {customer.driveFolderUrl ? (
+                <div><a href={customer.driveFolderUrl} target="_blank" rel="noreferrer">Priečinok zákazníka</a></div>
+              ) : (
+                <div>
+                  <button className="btn btn-sm" onClick={createFolder} disabled={creatingFolder}>
+                    {creatingFolder ? 'Vytvára sa…' : 'Vytvoriť priečinok na Drive'}
+                  </button>
+                  <div className="muted" style={{ fontSize: '0.85em', marginTop: 4 }}>
+                    Zákazník ešte nemá priečinok na zdieľanom disku.
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {customer.notes && (
