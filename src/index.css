@@ -656,3 +656,66 @@ input:disabled { background: var(--paper); color: var(--text-2); }
 .badge-failed { background: #fde8e4; color: var(--red); }
 .badge-error { background: #fff3cd; color: #856404; }
 .badge-ok { background: #e8f5ee; color: var(--green); }
+
+/* Zamestnanci: analytika evidovaného času */
+.analytics { margin-top: 20px; }
+.analytics .card-head p { margin: 4px 0 0; }
+.analytics-filters,
+.analytics-compare-selects {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  align-items: end;
+  margin: 18px 0;
+}
+.analytics-tabs { overflow-x: auto; }
+.analytics-tabs .tab { white-space: nowrap; }
+.analytics-tabs .tab:focus-visible,
+.analytics-detail summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.analytics-kpis { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.analytics-kpis .stat-value { font-size: 23px; }
+.analytics-block { margin: 24px 0; }
+.analytics-block h3 { font-size: 15px; margin-bottom: 12px; }
+.analytics-table-wrap { overflow-x: auto; width: 100%; }
+.analytics-table-wrap .table { min-width: 650px; }
+.analytics-detail-table { font-size: 13px; }
+.analytics-id { display: block; margin-top: 2px; color: var(--text-2); font-weight: 400; }
+.analytics-weeks { display: grid; gap: 12px; }
+.analytics-week-label { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.analytics-fill { background: var(--blue); }
+.analytics-note { margin-top: 12px; }
+.analytics-empty { padding: 24px 0; text-align: center; }
+.analytics-warning {
+  padding: 10px 12px;
+  border: 1px solid #d9c98f;
+  border-radius: 6px;
+  background: #fff8dc;
+  color: #6f5b19;
+}
+.analytics-issues { max-width: 560px; padding: 0; list-style: none; }
+.analytics-issues li { display: flex; justify-content: space-between; gap: 16px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.analytics-details { display: grid; gap: 10px; }
+.analytics-detail { border: 1px solid var(--border); border-radius: 7px; background: var(--card); }
+.analytics-detail summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 13px 14px;
+  cursor: pointer;
+}
+.analytics-detail summary > span { display: grid; gap: 2px; }
+.analytics-detail summary > span:last-child { text-align: right; white-space: nowrap; }
+.analytics-detail summary small { color: var(--text-2); font-weight: 400; }
+.analytics-detail-body { padding: 4px 14px 14px; }
+.analytics-detail-body h4 { margin: 16px 0 6px; }
+.analytics-detail-nested { margin-top: 8px; box-shadow: none; }
+.analytics-compare-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.analytics-compare-cards .card { margin: 0; box-shadow: none; }
+
+@media (max-width: 760px) {
+  .analytics-filters,
+  .analytics-compare-selects,
+  .analytics-compare-cards { grid-template-columns: 1fr; }
+  .analytics-detail summary { align-items: flex-start; }
+  .analytics .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
