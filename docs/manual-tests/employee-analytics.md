@@ -23,7 +23,7 @@ Automatizované overenie výpočtov je v `src/modules/employees/employeeAnalytic
 
 ## Automatizované dôkazy
 
-- `npm test`: 17 testov výpočtov vrátane období, filtrov, agregácií, porovnania, kvality dát, časového pásma a allowlistu.
+- `npm test`: 18 testov výpočtov vrátane období, filtrov, agregácií, porovnania, kvality dát, časového pásma a allowlistu.
 - `npm run lint`: očakávaných 7 existujúcich warningov mimo modulu Zamestnanci, bez novej chyby alebo warningu.
 - `npm run build`: produkčný Vite build overuje prepojenie komponentov a importov.
 
