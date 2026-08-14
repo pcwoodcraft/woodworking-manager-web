@@ -19,7 +19,7 @@ Automatizované overenie výpočtov je v `src/modules/employees/employeeAnalytic
 | 13 | Chybná syntetická fixture zobrazí všetkých sedem slovenských issue labelov. | NOT RUN | Presné county siedmich kódov prešli unit testom; render fixture vyžaduje browser. |
 | 14 | Klávesnica dosiahne filtre, záložky a `summary`; focus je viditeľný a natívne rozbalenie funguje. | NOT RUN | Vyžaduje manuálnu keyboard kontrolu. |
 | 15 | KPI, percento osoby a relatívne šírky aspoň dvoch týždňov sa zhodujú s view-modelom. | NOT RUN | Vyžaduje browser a konkrétny dataset na krížový prepočet. |
-| 16 | Prehľad zobrazuje abecedné rozbalenie zamestnanec → projekt → činnosť → záznam; súhrny hodín a počtov sedia s KPI a ostatnými záložkami. | NOT RUN | Vyžaduje prihlásený browser a konkrétny dataset. |
+| 16 | Prehľad zobrazuje abecedné rozbalenie zamestnanec → projekt → činnosť → záznam; súhrny hodín a počtov sedia s KPI a ostatnými záložkami. | PASS | Peter potvrdil funkčný preklik v prihlásenom lokálnom UI 14. 8. 2026. |
 
 ## Automatizované dôkazy
 
