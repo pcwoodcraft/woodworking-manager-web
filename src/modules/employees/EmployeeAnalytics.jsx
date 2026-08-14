@@ -115,14 +115,37 @@ function Overview({ analytics }) {
 
       <section className="analytics-block">
         <h3>Zamestnanci</h3>
-        <TableWrap><table className="table">
-          <thead><tr><th>Meno</th><th className="num">Hodiny</th><th className="num">Podiel času</th><th className="num">Projekty</th><th className="num">Činnosti</th><th className="num">Záznamy</th></tr></thead>
-          <tbody>{analytics.employees.map(employee => <tr key={employee.key}>
-            <td className="strong">{employee.name}{!employee.active && <small className="analytics-id">historický záznam</small>}</td>
-            <td className="num">{hours(employee.minutes)}</td><td className="num">{percentage(employee.minutes, analytics.totals.minutes)}</td>
-            <td className="num">{employee.projectCount}</td><td className="num">{employee.activityCount}</td><td className="num">{employee.records}</td>
-          </tr>)}</tbody>
-        </table></TableWrap>
+        <div className="analytics-details">{analytics.employees.map(employee => (
+          <details className="analytics-detail" key={employee.key}>
+            <summary>
+              <span>
+                <strong>{employee.name}</strong>
+                <small>{employee.projectCount} proj. · {employee.activityCount} činn. · {employee.records} záz.</small>
+              </span>
+              <span>{hours(employee.minutes)} · {percentage(employee.minutes, analytics.totals.minutes)}</span>
+            </summary>
+            <div className="analytics-detail-body">
+              {!employee.active && <p className="muted">Historický záznam zamestnanca</p>}
+              {employee.projects.map(project => (
+                <details className="analytics-detail analytics-detail-nested" key={project.key}>
+                  <summary>
+                    <span><strong>{project.name}</strong><small>{project.records} záznamov</small></span>
+                    <span>{hours(project.minutes)}</span>
+                  </summary>
+                  <div className="analytics-detail-body">{project.activities.map(activity => (
+                    <details className="analytics-detail analytics-detail-nested" key={activity.key}>
+                      <summary>
+                        <span><strong>{activity.name}</strong><small>{activity.records} záznamov</small></span>
+                        <span>{hours(activity.minutes)}</span>
+                      </summary>
+                      <div className="analytics-detail-body"><EntryTable entries={activity.entries} /></div>
+                    </details>
+                  ))}</div>
+                </details>
+              ))}
+            </div>
+          </details>
+        ))}</div>
       </section>
     </>}
 
