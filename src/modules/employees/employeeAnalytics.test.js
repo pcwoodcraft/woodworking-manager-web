@@ -138,6 +138,10 @@ test('normalizácia a anonymné keys sú stabilné po preusporiadaní', () => {
   assert.equal(analytics.projects.length, 1)
   assert.equal(analytics.activities.length, 1)
   assert.equal(analytics.activities[0].name, 'brusenie')
+  assert.deepEqual(filterEntries([
+    { id: 'same', employeeName: 'A', durationMin: 1 },
+    { id: 'same', employeeName: 'B', durationMin: 1 },
+  ], allRange).map(entry => entry.key), ['id:same', 'id:same'])
 })
 
 test('týždne začínajú pondelkom a nedatovaný záznam nevytvorí prázdny týždeň', () => {

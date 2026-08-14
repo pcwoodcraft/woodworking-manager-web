@@ -90,7 +90,7 @@ function sanitizeEntries(rawEntries = []) {
       minutes,
     }
     const signature = [employeeKey, projectKey, activity, date, startTime, endTime, minutes].map(normalize).join('|')
-    return { entry, baseKey: id ? `id:${id}` : `anon:${encodeURIComponent(signature)}` }
+    return { entry, anonymous: !id, baseKey: id ? `id:${id}` : `anon:${encodeURIComponent(signature)}` }
   })
 
   const totals = new Map()
@@ -99,7 +99,7 @@ function sanitizeEntries(rawEntries = []) {
   for (const item of prepared) {
     const ordinal = (seen.get(item.baseKey) || 0) + 1
     seen.set(item.baseKey, ordinal)
-    item.entry.key = totals.get(item.baseKey) > 1 ? `${item.baseKey}:${ordinal}` : item.baseKey
+    item.entry.key = item.anonymous && totals.get(item.baseKey) > 1 ? `${item.baseKey}:${ordinal}` : item.baseKey
   }
   return prepared.map(item => item.entry).sort(compareEntries)
 }
