@@ -63,7 +63,9 @@ Analytika má štyri záložky:
 
 - KPI: celkové hodiny, počet záznamov, počet zamestnancov, počet projektov a počet činností.
 - Časové rozdelenie po týždňoch ako jednoduchý stĺpcový graf bez novej knižnice.
-- Abecedná tabuľka zamestnancov: hodiny, podiel na celkovom čase, počet projektov, počet činností a počet záznamov.
+- Abecedný rozbaľovací zoznam zamestnancov nahradí plochú tabuľku. Súhrn každého zamestnanca zachová hodiny, podiel na celkovom čase, počet projektov, počet činností a počet záznamov.
+- Rozbalenie zamestnanca ukáže hierarchiu `zamestnanec → projekt → činnosť → jednotlivý časový záznam`. Projekt aj činnosť zobrazia vlastné hodiny a počet záznamov; detail záznamu použije rovnakú sanitizovanú podobu a formátovanie ako ostatné analytické drill-downy.
+- Nevznikne piata záložka ani druhý duplicitný zamestnanecký zoznam. Členenie podľa zamestnanca patrí priamo do Prehľadu.
 - Žiadne implicitné zoradenie podľa hodín; používateľ sa nevedie k rebríčku.
 - Súhrn upozornení na kvalitu dát.
 
@@ -131,6 +133,7 @@ Aktuálna serverová akcia číta `time_entries` bez explicitnej stránkovanosti
 - `Employees.jsx` zostane vlastníkom načítania dát, správy zamestnancov a existujúceho mesačného výkazu hodín a mzdových nákladov.
 - Nový `EmployeeAnalytics.jsx` bude prezentačná a interakčná analytická časť.
 - Nový `employeeAnalytics.js` bude čistá výpočtová vrstva bez Reactu.
+- Zamestnanecký riadok vo view-modeli doplní `projects`, v ktorých budú vnorené `activities` a ich sanitizované `entries`. JSX nebude túto hierarchiu znovu agregovať.
 - Výpočtová vrstva bude krytá testami cez zabudovaný `node:test`; tým sa nepridá testovacia knižnica.
 - Grafy a rozbaľovanie použijú CSS a natívne HTML (`details`, `summary`, `input type="date"`).
 - Existujúce farby, typografia, tabuľky, karty, záložky a responzívne pravidlá zostanú zdrojom dizajnu.
@@ -138,11 +141,12 @@ Aktuálna serverová akcia číta `time_entries` bez explicitnej stránkovanosti
 ## Akceptačné kritériá
 
 1. Čísla na Prehľade, Činnostiach a Projektoch sa menia podľa rovnakého obdobia a globálneho filtra zamestnanca; Porovnanie používa rovnaké obdobie a dve vlastné voľby osôb.
-2. Činnosti sa sčítajú naprieč projektmi.
-3. Projekty obsahujú vnorené činnosti, zamestnancov a záznamy.
-4. Porovnanie je neutrálne a neobsahuje skóre ani poradie.
-5. Historické a neúplné záznamy sa nestratia bez vysvetlenia.
-6. Používateľ bez `perm_timesheets` alebo modulu `workshop` nezíska analytické dáta; bez `perm_employees` sa na route nedostane.
-7. Pridanie, úprava, soft-delete zamestnanca a existujúci mesačný výkaz fungujú ako pred zmenou.
-8. `npm test`, `npm run lint` a `npm run build` skončia s exit kódom 0.
-9. Nevznikne backendový deploy, migrácia ani produkčné nasadenie. Automatické overenie nemení produkčné dáta; prípadný prihlásený CRUD smoke vykoná až Peter ako samostatný manuálny krok.
+2. Prehľad obsahuje abecedné rozbalenie `zamestnanec → projekt → činnosť → záznamy` a na každej súhrnnej úrovni zobrazuje čas a počet záznamov.
+3. Činnosti sa sčítajú naprieč projektmi.
+4. Projekty obsahujú vnorené činnosti, zamestnancov a záznamy.
+5. Porovnanie je neutrálne a neobsahuje skóre ani poradie.
+6. Historické a neúplné záznamy sa nestratia bez vysvetlenia.
+7. Používateľ bez `perm_timesheets` alebo modulu `workshop` nezíska analytické dáta; bez `perm_employees` sa na route nedostane.
+8. Pridanie, úprava, soft-delete zamestnanca a existujúci mesačný výkaz fungujú ako pred zmenou.
+9. `npm test`, `npm run lint` a `npm run build` skončia s exit kódom 0.
+10. Nevznikne backendový deploy, migrácia ani produkčné nasadenie. Automatické overenie nemení produkčné dáta; prípadný prihlásený CRUD smoke vykoná až Peter ako samostatný manuálny krok.
