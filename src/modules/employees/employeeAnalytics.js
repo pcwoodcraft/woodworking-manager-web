@@ -262,6 +262,18 @@ export function buildAnalytics(filteredRawEntries = [], employeeOptions = []) {
       projectCount: new Set(rows.map(entry => entry.projectKey)).size,
       activityCount: new Set(rows.map(entry => entry.activityKey)).size,
       entries: rows,
+      projects: [...groupBy(rows, 'projectKey')].map(([projectKey, projectRows]) => ({
+        key: projectKey,
+        id: projectRows[0].projectId,
+        name: projectNames.get(projectKey)?.name || projectRows[0].projectName,
+        ...summarize(projectRows),
+        activities: [...groupBy(projectRows, 'activityKey')].map(([activityKey, activityRows]) => ({
+          key: activityKey,
+          name: activityNames.get(activityKey)?.name || activityRows[0].activityName,
+          ...summarize(activityRows),
+          entries: activityRows,
+        })).sort((a, b) => a.name.localeCompare(b.name, 'sk') || a.key.localeCompare(b.key)),
+      })).sort((a, b) => a.name.localeCompare(b.name, 'sk') || a.key.localeCompare(b.key)),
     }
   }).sort((a, b) => a.name.localeCompare(b.name, 'sk') || a.key.localeCompare(b.key))
 

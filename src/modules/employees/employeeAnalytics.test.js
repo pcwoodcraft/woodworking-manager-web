@@ -107,6 +107,29 @@ test('analytics počíta totals a činnosti vrátane nezaradených skupín', () 
   assert.ok(analytics.activities.some(activity => activity.name === 'Nezaradená činnosť'))
 })
 
+test('zamestnanec obsahuje projekty, činnosti a sanitizované záznamy', () => {
+  const analytics = buildAnalytics(
+    filterEntries(entries.slice(0, 5), allRange),
+    buildEmployeeOptions(employees, entries),
+  )
+  const anna = analytics.employees.find(employee => employee.key === 'id:E1')
+
+  assert.deepEqual(anna.projects.map(project => [project.key, project.name, project.minutes, project.records]), [
+    ['id:P1', 'Kuchyňa', 120, 1],
+    ['id:P2', 'Skriňa', 60, 1],
+  ])
+  assert.deepEqual(anna.projects[0].activities.map(activity => [activity.key, activity.name, activity.minutes, activity.records]), [
+    ['name:brusenie', 'Brúsenie', 120, 1],
+  ])
+  assert.equal(anna.projects.reduce((sum, project) => sum + project.minutes, 0), anna.minutes)
+  assert.equal(anna.projects[0].activities.reduce((sum, activity) => sum + activity.minutes, 0), anna.projects[0].minutes)
+  assert.deepEqual(anna.projects[0].activities[0].entries.map(entry => entry.id), ['H1'])
+  assert.deepEqual(Object.keys(anna.projects[0].activities[0].entries[0]).sort(), [
+    'activityKey', 'activityName', 'date', 'employeeId', 'employeeKey', 'employeeName', 'endTime', 'id', 'key',
+    'minutes', 'projectId', 'projectKey', 'projectName', 'startTime',
+  ])
+})
+
 test('issues počíta všetkých sedem kódov a každý chybný záznam raz', () => {
   const analytics = buildAnalytics(filterEntries(entries, allRange), buildEmployeeOptions(employees, entries))
   assert.deepEqual(analytics.issues.byCode, {
