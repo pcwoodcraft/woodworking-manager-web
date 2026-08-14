@@ -5,6 +5,7 @@ import { Spinner, ErrorBox } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import Modal from '../../components/Modal'
 import { fmtMoney, parseNum, fmtMonth, thisMonth, shiftMonth, toIsoDate } from '../../utils/format'
+import EmployeeAnalytics from './EmployeeAnalytics.jsx'
 
 function EmployeeForm({ employee, onClose, onSaved }) {
   const toast = useToast()
@@ -62,8 +63,8 @@ function EmployeeForm({ employee, onClose, onSaved }) {
 
 export default function Employees() {
   const toast = useToast()
-  const { can } = useAuth()
-  const canHours = can('perm_timesheets')
+  const { can, hasModule } = useAuth()
+  const canHours = can('perm_timesheets') && hasModule('workshop')
   const [state, setState] = useState({ loading: true, error: null })
   const [data, setData] = useState({ employees: [], entries: [] })
   const [month, setMonth] = useState(thisMonth())
@@ -163,6 +164,10 @@ export default function Employees() {
           </table>
         )}
       </div>
+
+      {canHours
+        ? <EmployeeAnalytics employees={data.employees} entries={data.entries} />
+        : <div className="card"><p className="muted">Na zobrazenie štatistík potrebuješ aktívny modul Dielňa a právo na výkazy práce.</p></div>}
 
       {form && (
         <EmployeeForm employee={form === 'new' ? null : form}
