@@ -2,30 +2,32 @@ import { useState, useEffect } from 'react'
 import Modal from '../../components/Modal'
 import { useToast } from '../../components/Toast'
 import { apiCall } from '../../api/client'
-import { PROJECT_STATUSES, normalizeStatus, toIsoDate, parseNum } from '../../utils/format'
+import { useAuth } from '../../auth/AuthContext'
+import { PROJECT_STATUSES, normalizeStatus, toIsoDate, parseNum, isUsableVatRate, shouldBlockProjectPriceSave } from '../../utils/format'
 
-const VAT_RATE = 23
-
-function calcGrossFromNet(net) {
+function calcGrossFromNet(net, vatRate) {
   if (!net && net !== 0) return ''
   const n = parseNum(net)
   if (!n) return ''
-  return String(Math.round(n * (1 + VAT_RATE / 100) * 100) / 100)
+  return String(Math.round(n * (1 + vatRate / 100) * 100) / 100)
 }
 
-function calcNetFromGross(gross) {
+function calcNetFromGross(gross, vatRate) {
   if (!gross && gross !== 0) return ''
   const g = parseNum(gross)
   if (!g) return ''
-  return String(Math.round(g / (1 + VAT_RATE / 100) * 100) / 100)
+  return String(Math.round(g / (1 + vatRate / 100) * 100) / 100)
 }
 
 // Pridanie / úprava projektu. customers môže byť prázdne (bez perm_customers) —
 // vtedy sa zákazník nemení a pole je len na čítanie.
 export default function ProjectForm({ project, customers, onClose, onSaved }) {
   const toast = useToast()
+  const { settings, canUseTaxCalculations } = useAuth()
+  const taxCalculationsReady = canUseTaxCalculations === true && isUsableVatRate(settings?.vatRate)
   const isEdit = !!project
   const [saving, setSaving] = useState(false)
+  const [priceFieldsTouched, setPriceFieldsTouched] = useState(false)
   const [f, setF] = useState({
     name: project?.name || '',
     customerId: project?.customerId || '',
@@ -68,16 +70,32 @@ export default function ProjectForm({ project, customers, onClose, onSaved }) {
 
   const setPriceNet = (e) => {
     const val = e.target.value
-    setF({ ...f, priceNet: val, price: val === '' ? '' : calcGrossFromNet(val) })
+    setPriceFieldsTouched(true)
+    setF(prev => taxCalculationsReady
+      ? { ...prev, priceNet: val, price: val === '' ? '' : calcGrossFromNet(val, settings.vatRate) }
+      : { ...prev, priceNet: val })
   }
 
   const setPriceGross = (e) => {
     const val = e.target.value
-    setF({ ...f, price: val, priceNet: val === '' ? '' : calcNetFromGross(val) })
+    setPriceFieldsTouched(true)
+    setF(prev => taxCalculationsReady
+      ? { ...prev, price: val, priceNet: val === '' ? '' : calcNetFromGross(val, settings.vatRate) }
+      : { ...prev, price: val })
   }
 
   const save = async () => {
     if (!f.name.trim()) { toast('Vyplňte názov projektu', 'err'); return }
+    if (shouldBlockProjectPriceSave({
+      canUseTaxCalculations,
+      vatRate: settings?.vatRate,
+      pricesTouched: priceFieldsTouched,
+      price: f.price,
+      priceNet: f.priceNet,
+    })) {
+      toast('Daňové nastavenia nie sú pripravené. Doplňte obe ceny alebo kontaktujte správcu.', 'err')
+      return
+    }
     const cust = customers.find(c => c.id === f.customerId)
     const customerName = cust
       ? [cust.firstName, cust.lastName].filter(Boolean).join(' ')
@@ -100,6 +118,10 @@ export default function ProjectForm({ project, customers, onClose, onSaved }) {
     }
     if (isEdit) {
       data.id = project.id
+      if (!priceFieldsTouched) {
+        delete data.price
+        delete data.priceNet
+      }
       // F6: v režime úpravy sa stav do payloadu NEZARADÍ vôbec. Nestačí select zneaktívniť —
       // ak by medzitým stav zmenil niekto iný (alebo detail projektu), formulár by poslal starú
       // hodnotu a bežná úprava nesúvisiaceho poľa by skončila na chybe. Stav sa mení výhradne
@@ -166,9 +188,15 @@ export default function ProjectForm({ project, customers, onClose, onSaved }) {
           <span>Cena s DPH (€)</span>
           <input type="number" step="0.01" value={f.price} onChange={setPriceGross} />
         </label>
-        <p className="muted span-2" style={{ margin: 0, fontSize: '0.85em' }}>
-          Stačí vyplniť jednu cenu — druhá sa dopočíta ({VAT_RATE} % DPH).
-        </p>
+        {taxCalculationsReady ? (
+          <p className="muted span-2" style={{ margin: 0, fontSize: '0.85em' }}>
+            Stačí vyplniť jednu cenu — druhá sa dopočíta ({settings.vatRate} % DPH).
+          </p>
+        ) : (
+          <p className="budget-label-warn span-2" style={{ margin: 0, fontSize: '0.85em' }}>
+            Daňové nastavenia nie sú pripravené. Ak cenu meníte, vyplňte cenu bez DPH aj s DPH.
+          </p>
+        )}
         <label className="field">
           <span>Termín</span>
           <input type="date" value={f.deadline} onChange={set('deadline')} />

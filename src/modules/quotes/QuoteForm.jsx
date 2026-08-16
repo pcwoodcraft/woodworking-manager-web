@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { apiCall } from '../../api/client'
 import { useToast } from '../../components/Toast'
 import { Spinner } from '../../components/ui'
-import { fmtMoney, parseNum, toIsoDate } from '../../utils/format'
+import { useAuth } from '../../auth/AuthContext'
+import { fmtMoney, isUsableVatRate, parseNum, toIsoDate } from '../../utils/format'
 import {
   QUOTE_STATUSES, QUOTE_LANGUAGES, QUOTE_TAX_MODES, QUOTE_TERMS_TEMPLATES,
   QUOTE_UNITS, emptyQuoteItem, translateTargetLang,
@@ -17,6 +18,7 @@ function isForeignVatCustomer(customer) {
 
 export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, onSaved, onCancel }) {
   const toast = useToast()
+  const { settings, canUseTaxCalculations } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const isEdit = !!quoteId
@@ -203,10 +205,14 @@ export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, o
     [f.items]
   )
 
-  const vatRate = 23
+  const taxCalculationsReady = canUseTaxCalculations === true
+    && isUsableVatRate(settings?.vatRate)
+  const vatQuoteBlocked = f.taxMode === 'VAT_SK' && !taxCalculationsReady
   const subtotalGross = f.taxMode === 'REVERSE_CHARGE'
     ? subtotalNet
-    : Math.round(subtotalNet * (1 + vatRate / 100) * 100) / 100
+    : taxCalculationsReady
+      ? Math.round(subtotalNet * (1 + settings.vatRate / 100) * 100) / 100
+      : null
 
   const targetLang = translateTargetLang(f.language)
 
@@ -311,6 +317,10 @@ export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, o
   }
 
   const save = async () => {
+    if (vatQuoteBlocked) {
+      toast('Daňové nastavenia nie sú pripravené. Ponuku s DPH nie je možné uložiť.', 'err')
+      return
+    }
     if (frozen) { toast('Ponuka je uzamknutá', 'err'); return }
     if (!f.customerId) { toast('Vyberte zákazníka', 'err'); return }
     if (!f.projectName.trim()) { toast('Vyplňte názov projektu', 'err'); return }
@@ -548,6 +558,13 @@ export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, o
             ))}
           </tbody>
           <tfoot>
+            {vatQuoteBlocked && (
+              <tr>
+                <td colSpan={8} id="quote-tax-configuration-error" className="budget-label-warn">
+                  Daňové nastavenia nie sú pripravené. Ponuku s DPH nie je možné uložiť. Kontaktujte správcu.
+                </td>
+              </tr>
+            )}
             <tr>
               <td colSpan={6} className="strong">Spolu {f.taxMode === 'REVERSE_CHARGE' ? 'bez DPH' : 's DPH'}</td>
               <td className="num strong">{fmtMoney(f.taxMode === 'REVERSE_CHARGE' ? subtotalNet : subtotalGross)}</td>
@@ -565,7 +582,14 @@ export default function QuoteForm({ quoteId, initialCustomerId, initialLeadId, o
       <div className="btn-group" style={{ marginTop: 16 }}>
         <button type="button" className="btn btn-secondary" onClick={onCancel || (() => navigate('/zakaznici/ponuky'))}>Späť</button>
         {!frozen && (
-          <button type="button" className="btn" onClick={save} disabled={saving}>
+          <button
+            type="button"
+            className="btn"
+            onClick={save}
+            disabled={saving || vatQuoteBlocked}
+            title={vatQuoteBlocked ? 'Najprv treba doplniť platnú daňovú konfiguráciu.' : undefined}
+            aria-describedby={vatQuoteBlocked ? 'quote-tax-configuration-error' : undefined}
+          >
             {saving ? 'Ukladá sa…' : (isEdit ? 'Uložiť ponuku' : 'Vytvoriť ponuku')}
           </button>
         )}

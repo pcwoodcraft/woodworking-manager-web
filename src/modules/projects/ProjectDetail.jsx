@@ -185,10 +185,10 @@ function groupEntries(entries) {
     .sort((a, b) => b.hours - a.hours)
 }
 
-function BudgetOverview({ summary, project }) {
+function BudgetOverview({ summary, project, vatRate }) {
   if (!summary) return null
   const { price, laborCost, materialCost, incomingCost, totalCost, costPercent } = summary
-  const priceGross = project ? projectPriceGross(project) : 0
+  const priceGross = project ? projectPriceGross(project, vatRate) : 0
   const level = budgetLevel(costPercent)
   const pct = costPercent != null ? Math.min(costPercent, 100) : 0
 
@@ -199,7 +199,7 @@ function BudgetOverview({ summary, project }) {
         <div className="stat-card">
           <div className="stat-label">Cena zákazky (bez DPH)</div>
           <div className="stat-value">{fmtMoney(price)}</div>
-          {priceGross > 0 && (
+          {typeof priceGross === 'number' && priceGross > 0 && (
             <div className="stat-sub">s DPH: {fmtMoney(priceGross)}</div>
           )}
         </div>
@@ -233,7 +233,7 @@ function BudgetOverview({ summary, project }) {
 export default function ProjectDetail() {
   const { id } = useParams()
   const toast = useToast()
-  const { can, hasModule, expectedSections, refreshBootstrap } = useAuth()
+  const { can, hasModule, expectedSections, refreshBootstrap, settings } = useAuth()
   const canWrite = can('perm_projects_write')
   const canHours = can('perm_timesheets')
   // Modul sa k právu PRIDÁVA, nenahrádza ho — pôvodné `can('perm_invoices_*')` zostáva podmienkou.
@@ -527,7 +527,7 @@ export default function ProjectDetail() {
 
       {tab === 'prehlad' && (
         <>
-          <BudgetOverview summary={summary} project={project} />
+          <BudgetOverview summary={summary} project={project} vatRate={settings?.vatRate} />
           {paymentSummary && (
             <div className="stat-grid">
               <div className="stat-card">

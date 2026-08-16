@@ -10,7 +10,7 @@ import {
 } from '../../utils/format'
 
 export default function Dashboard() {
-  const { can, expectedSections, refreshBootstrap } = useAuth()
+  const { can, expectedSections, refreshBootstrap, settings } = useAuth()
   const navigate = useNavigate()
   const [state, setState] = useState({ loading: true, error: null, data: null })
   const [crmSummary, setCrmSummary] = useState(null)
@@ -186,7 +186,7 @@ export default function Dashboard() {
                       <td>{p.customer}</td>
                       <td><StatusBadge status={p.status} /></td>
                       <td className={overdue ? 'overdue' : ''}>{fmtDate(p.deadline)}{overdue ? ' ⚠' : ''}</td>
-                      <td className="num">{fmtMoney(projectPriceNet(p))}</td>
+                      <td className="num">{fmtMoney(projectPriceNet(p, settings?.vatRate))}</td>
                     </tr>
                   )
                 })}

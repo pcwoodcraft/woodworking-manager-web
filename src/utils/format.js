@@ -36,25 +36,40 @@ export function parseNum(v) {
   return isNaN(n) ? 0 : n
 }
 
-const DEFAULT_VAT_RATE = 23
+const hasExplicitPrice = (value) => value !== '' && value != null
+
+export function isUsableVatRate(vatRate) {
+  return Number.isFinite(vatRate) && vatRate > 0 && vatRate < 100
+}
+
+export function shouldBlockProjectPriceSave({
+  canUseTaxCalculations,
+  vatRate,
+  pricesTouched,
+  price,
+  priceNet,
+}) {
+  const calculationsReady = canUseTaxCalculations === true && isUsableVatRate(vatRate)
+  return pricesTouched === true
+    && !calculationsReady
+    && hasExplicitPrice(price) !== hasExplicitPrice(priceNet)
+}
 
 /** Cena zákazky bez DPH — primárna hodnota pre zoznamy a prehľady. */
-export function projectPriceNet(project, vatRate = DEFAULT_VAT_RATE) {
-  if (project?.priceNet !== '' && project?.priceNet != null && !isNaN(parseNum(project.priceNet))) {
-    return parseNum(project.priceNet)
-  }
-  const gross = parseNum(project?.price)
-  if (gross <= 0) return 0
+export function projectPriceNet(project, vatRate) {
+  if (hasExplicitPrice(project?.priceNet)) return parseNum(project.priceNet)
+  if (!hasExplicitPrice(project?.price)) return 0
+  if (!isUsableVatRate(vatRate)) return null
+  const gross = parseNum(project.price)
   return Math.round(gross / (1 + vatRate / 100) * 100) / 100
 }
 
 /** Cena zákazky s DPH — len pre detail projektu. */
-export function projectPriceGross(project, vatRate = DEFAULT_VAT_RATE) {
-  if (project?.price !== '' && project?.price != null && !isNaN(parseNum(project.price))) {
-    return parseNum(project.price)
-  }
-  const net = parseNum(project?.priceNet)
-  if (net <= 0) return 0
+export function projectPriceGross(project, vatRate) {
+  if (hasExplicitPrice(project?.price)) return parseNum(project.price)
+  if (!hasExplicitPrice(project?.priceNet)) return 0
+  if (!isUsableVatRate(vatRate)) return null
+  const net = parseNum(project.priceNet)
   return Math.round(net * (1 + vatRate / 100) * 100) / 100
 }
 
