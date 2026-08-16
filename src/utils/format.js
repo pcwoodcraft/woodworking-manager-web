@@ -42,6 +42,23 @@ export function isUsableVatRate(vatRate) {
   return Number.isFinite(vatRate) && vatRate > 0 && vatRate < 100
 }
 
+export function initialProjectPriceValues(project) {
+  return {
+    price: project?.price ?? '',
+    priceNet: project?.priceNet ?? '',
+  }
+}
+
+export function calcGrossFromNet(net, vatRate) {
+  if (net === '' || net == null || !isUsableVatRate(vatRate)) return ''
+  return String(Math.round(parseNum(net) * (1 + vatRate / 100) * 100) / 100)
+}
+
+export function calcNetFromGross(gross, vatRate) {
+  if (gross === '' || gross == null || !isUsableVatRate(vatRate)) return ''
+  return String(Math.round(parseNum(gross) / (1 + vatRate / 100) * 100) / 100)
+}
+
 export function shouldBlockProjectPriceSave({
   canUseTaxCalculations,
   vatRate,

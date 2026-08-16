@@ -2,11 +2,24 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  calcGrossFromNet,
+  calcNetFromGross,
+  initialProjectPriceValues,
   isUsableVatRate,
   projectPriceGross,
   projectPriceNet,
   shouldBlockProjectPriceSave,
 } from './format.js'
+
+test('project form preserves stored numeric zero', () => {
+  assert.deepEqual(initialProjectPriceValues({ price: 0, priceNet: 0 }), { price: 0, priceNet: 0 })
+  assert.deepEqual(initialProjectPriceValues({ price: null }), { price: '', priceNet: '' })
+})
+
+test('project form derives a coherent zero in both directions', () => {
+  assert.equal(calcGrossFromNet('0', 23), '0')
+  assert.equal(calcNetFromGross('0', 23), '0')
+})
 
 test('isUsableVatRate accepts only finite numeric rates between 0 and 100', () => {
   for (const value of [0.01, 23, 99.99]) assert.equal(isUsableVatRate(value), true)

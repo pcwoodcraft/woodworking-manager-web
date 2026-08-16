@@ -3,21 +3,10 @@ import Modal from '../../components/Modal'
 import { useToast } from '../../components/Toast'
 import { apiCall } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
-import { PROJECT_STATUSES, normalizeStatus, toIsoDate, parseNum, isUsableVatRate, shouldBlockProjectPriceSave } from '../../utils/format'
-
-function calcGrossFromNet(net, vatRate) {
-  if (!net && net !== 0) return ''
-  const n = parseNum(net)
-  if (!n) return ''
-  return String(Math.round(n * (1 + vatRate / 100) * 100) / 100)
-}
-
-function calcNetFromGross(gross, vatRate) {
-  if (!gross && gross !== 0) return ''
-  const g = parseNum(gross)
-  if (!g) return ''
-  return String(Math.round(g / (1 + vatRate / 100) * 100) / 100)
-}
+import {
+  PROJECT_STATUSES, calcGrossFromNet, calcNetFromGross, initialProjectPriceValues,
+  isUsableVatRate, normalizeStatus, parseNum, shouldBlockProjectPriceSave, toIsoDate,
+} from '../../utils/format'
 
 // Pridanie / úprava projektu. customers môže byť prázdne (bez perm_customers) —
 // vtedy sa zákazník nemení a pole je len na čítanie.
@@ -26,13 +15,14 @@ export default function ProjectForm({ project, customers, onClose, onSaved }) {
   const { settings, canUseTaxCalculations } = useAuth()
   const taxCalculationsReady = canUseTaxCalculations === true && isUsableVatRate(settings?.vatRate)
   const isEdit = !!project
+  const initialPrices = initialProjectPriceValues(project)
   const [saving, setSaving] = useState(false)
   const [priceFieldsTouched, setPriceFieldsTouched] = useState(false)
   const [f, setF] = useState({
     name: project?.name || '',
     customerId: project?.customerId || '',
-    price: project?.price || '',
-    priceNet: project?.priceNet || '',
+    price: initialPrices.price,
+    priceNet: initialPrices.priceNet,
     estimatedMaterialCosts: project?.estimatedMaterialCosts || '',
     estimatedHours: project?.estimatedHours || '',
     // F2/T10-01: ŽIADNA sadzba natvrdo. Bola tu konštanta '25', hoci dielňa účtuje 30 €/h —
