@@ -1,114 +1,125 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { apiCall } from '../../api/client'
+import { useAuth } from '../../auth/AuthContext'
 import { useToast } from '../../components/Toast'
+import { ErrorBox } from '../../components/ui'
+import {
+  INVOICE_FIELDS,
+  INVOICE_SETTING_KEYS,
+  canLoadInvoiceSettings,
+  projectInvoiceSettings,
+} from './invoiceSettingsFields'
 
-const FIELDS = [
-  { key: 'companyName', label: 'Názov firmy', span: 2 },
-  { key: 'companyTagline', label: 'Podnadpis (tagline)', span: 2 },
-  { key: 'companyAddress', label: 'Adresa', span: 2, rows: 2 },
-  { key: 'companyIco', label: 'IČO' },
-  { key: 'companyDic', label: 'DIČ' },
-  { key: 'companyIcDph', label: 'IČ DPH' },
-  { key: 'companyIban', label: 'IBAN', span: 2 },
-  { key: 'companyBank', label: 'Banka', span: 2 },
-  { key: 'companySwift', label: 'SWIFT' },
-  { key: 'invoiceConstantSymbol', label: 'Konštantný symbol' },
-  { key: 'invoiceIssuedBy', label: 'Vyhotovil' },
-  { key: 'vatRate', label: 'Sadzba DPH (%)' },
-  { key: 'paymentDays', label: 'Splatnosť (dní)' },
-  { key: 'advancePercent', label: 'Záloha (% z ceny projektu)' },
-  { key: 'invoiceNextSeq', label: 'Ďalšie číslo — rad F (ostrá faktúra)' },
-  { key: 'advanceNextSeq', label: 'Ďalšie číslo — rad Z (záloha)' },
-  { key: 'invoiceSeqDigits', label: 'Počet číslic v sekvencii' },
-  { key: 'invoiceFooter', label: 'Pätička faktúry', span: 2, rows: 2 },
-]
-
-export default function InvoiceSettingsPanel() {
+export default function InvoiceSettingsPanel({ moduleEnabled, canRead }) {
   const toast = useToast()
-  const [loading, setLoading] = useState(true)
+  const { instanceConfiguration, refreshInstanceConfiguration } = useAuth()
+  const access = canLoadInvoiceSettings({ moduleEnabled, canRead })
+  const [loading, setLoading] = useState(access)
+  const [error, setError] = useState(null)
   const [saving, setSaving] = useState(false)
   const [syncing, setSyncing] = useState(false)
-  const [settings, setSettings] = useState({})
+  const [settings, setSettings] = useState(projectInvoiceSettings())
   const [nextRegular, setNextRegular] = useState('')
   const [nextAdvance, setNextAdvance] = useState('')
 
-  const load = async () => {
+  const load = useCallback(async () => {
+    if (!canLoadInvoiceSettings({ moduleEnabled, canRead })) return false
     setLoading(true)
+    setError(null)
     try {
-      const d = await apiCall('getInvoiceSettings')
-      setSettings(d.settings || {})
-      setNextRegular(d.nextRegularPreview || d.nextNumberPreview || '')
-      setNextAdvance(d.nextAdvancePreview || '')
-    } catch (e) {
-      toast('Nepodarilo sa načítať nastavenia: ' + e.message, 'err')
+      const data = await apiCall('getInvoiceSettings')
+      setSettings(projectInvoiceSettings(data?.settings))
+      setNextRegular(data?.nextRegularPreview || data?.nextNumberPreview || '')
+      setNextAdvance(data?.nextAdvancePreview || '')
+      return true
+    } catch (loadError) {
+      setError(loadError)
+      return false
     } finally {
       setLoading(false)
     }
-  }
+  }, [moduleEnabled, canRead])
 
-  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (access) load() }, [access, load])
 
-  const set = (k) => (e) => setSettings({ ...settings, [k]: e.target.value })
+  const invoiceIssues = useMemo(() => (instanceConfiguration?.invoicing?.issues || [])
+    .filter(issue => INVOICE_SETTING_KEYS.includes(issue.key)), [instanceConfiguration])
+  const issueByKey = useMemo(() => Object.fromEntries(invoiceIssues.map(issue => [issue.key, issue.kind])), [invoiceIssues])
+  const invoiceReady = instanceConfiguration?.state === 'loaded' && invoiceIssues.length === 0
+
+  const set = (key) => (event) => setSettings(current => ({ ...current, [key]: event.target.value }))
 
   const save = async () => {
     setSaving(true)
     try {
-      const d = await apiCall('saveInvoiceSettings', { settings })
-      setSettings(d.settings || {})
-      setNextRegular(d.nextRegularPreview || '')
-      setNextAdvance(d.nextAdvancePreview || '')
-      toast('Nastavenia fakturácie uložené')
-    } catch (e) {
-      toast('Nepodarilo sa uložiť: ' + e.message, 'err')
+      const data = await apiCall('saveInvoiceSettings', { settings: projectInvoiceSettings(settings) })
+      setSettings(projectInvoiceSettings(data?.settings))
+      setNextRegular(data?.nextRegularPreview || '')
+      setNextAdvance(data?.nextAdvancePreview || '')
+      const status = await refreshInstanceConfiguration()
+      if (status.state === 'loaded') toast('Nastavenia fakturácie uložené')
+      else toast('Nastavenia boli uložené, ale aktuálny stav sa nepodarilo overiť. Obnovte stránku.', 'err')
+    } catch (saveError) {
+      if (saveError?.code !== 'UNAUTHORIZED') toast('Nepodarilo sa uložiť: ' + saveError.message, 'err')
     } finally {
       setSaving(false)
     }
   }
 
   const sync = async () => {
-    if (!window.confirm('Nastaviť ďalšie čísla podľa existujúcich faktúr (rady F a Z zvlášť)?')) return
+    if (!window.confirm('Nastaviť ďalšie čísla podľa existujúcich dokladov (rady F, Z a D zvlášť)?')) return
     setSyncing(true)
     try {
-      const d = await apiCall('syncInvoiceSequence')
-      setNextRegular(d.nextRegularPreview || '')
-      setNextAdvance(d.nextAdvancePreview || '')
-      await load()
-      toast('Rady synchronizované — F: ' + (d.nextRegularPreview || '—') + ', Z: ' + (d.nextAdvancePreview || '—'))
-    } catch (e) {
-      toast('Synchronizácia zlyhala: ' + e.message, 'err')
+      await apiCall('syncInvoiceSequence')
+      const loaded = await load()
+      const status = await refreshInstanceConfiguration()
+      if (loaded && status.state === 'loaded') toast('Rady F/Z/D boli synchronizované')
+      else toast('Rady boli synchronizované, ale aktuálny stav sa nepodarilo načítať. Obnovte stránku.', 'err')
+    } catch (syncError) {
+      if (syncError?.code !== 'UNAUTHORIZED') toast('Synchronizácia zlyhala: ' + syncError.message, 'err')
     } finally {
       setSyncing(false)
     }
   }
 
+  if (!moduleEnabled) return <p className="muted">Modul Fakturácia je vypnutý. Nastavenia sa sprístupnia po jeho aktivácii.</p>
+  if (!canRead) return <p className="muted">Na zobrazenie fakturačných nastavení nemáte oprávnenie.</p>
   if (loading) return <p className="muted">Načítava sa…</p>
+  if (error) return <ErrorBox error={error} onRetry={load} />
 
   return (
     <div>
+      {instanceConfiguration?.state === 'unavailable' ? (
+        <p className="configuration-summary configuration-summary-error" role="alert">Aktuálny stav fakturačnej konfigurácie sa nepodarilo overiť.</p>
+      ) : (
+        <p className={'configuration-summary ' + (invoiceReady ? 'configuration-summary-ok' : 'configuration-summary-error')}
+          role={invoiceReady ? undefined : 'alert'}>
+          {invoiceReady ? 'Fakturačné údaje sú pripravené.' : 'Fakturačné údaje vyžadujú opravu.'}
+        </p>
+      )}
       <p className="muted" style={{ marginBottom: 12 }}>
-        Ostré faktúry: rad <b>F</b> (zobrazené ako 2026012). Zálohy: rad <b>Z</b> (Z2026002).
-        Po úhrade zálohy vystavte <b>ostrú faktúru</b> — tá patrí do radu F.
-        Ďalšie číslo F: <b>{nextRegular || '—'}</b> · Z: <b>{nextAdvance || '—'}</b>
+        Ostré faktúry: rad <b>F</b>. Zálohy: rad <b>Z</b>. Storná a dobropisy: rad <b>D</b>.
+        Ďalšie číslo F: <b>{nextRegular || '—'}</b> · Z: <b>{nextAdvance || '—'}</b> · D: <b>{settings.creditNoteNextSeq || '—'}</b>
       </p>
       <div className="form-grid">
-        {FIELDS.map(f => (
-          <label key={f.key} className={'field' + (f.span === 2 ? ' span-2' : '')}>
-            <span>{f.label}</span>
-            {f.rows ? (
-              <textarea rows={f.rows} value={settings[f.key] || ''} onChange={set(f.key)} />
-            ) : (
-              <input value={settings[f.key] || ''} onChange={set(f.key)} />
-            )}
-          </label>
-        ))}
+        {INVOICE_FIELDS.map(field => {
+          const issue = issueByKey[field.key]
+          return (
+            <label key={field.key} className={'field' + (field.span === 2 ? ' span-2' : '') + (issue ? ' field-error' : '')}>
+              <span>{field.label}</span>
+              {field.rows ? (
+                <textarea rows={field.rows} value={settings[field.key] ?? ''} onChange={set(field.key)} />
+              ) : (
+                <input value={settings[field.key] ?? ''} onChange={set(field.key)} />
+              )}
+              {issue && <small>{issue === 'missing' ? 'Povinné pole chýba.' : 'Hodnota nie je platná.'}</small>}
+            </label>
+          )
+        })}
       </div>
       <div className="btn-group" style={{ marginTop: 16 }}>
-        <button className="btn" onClick={save} disabled={saving}>
-          {saving ? 'Ukladá sa…' : 'Uložiť nastavenia'}
-        </button>
-        <button className="btn btn-secondary" onClick={sync} disabled={syncing}>
-          {syncing ? '…' : 'Synchronizovať rady F a Z'}
-        </button>
+        <button className="btn" onClick={save} disabled={saving}>{saving ? 'Ukladá sa…' : 'Uložiť nastavenia'}</button>
+        <button className="btn btn-secondary" onClick={sync} disabled={syncing}>{syncing ? '…' : 'Synchronizovať rady F/Z/D'}</button>
       </div>
     </div>
   )
