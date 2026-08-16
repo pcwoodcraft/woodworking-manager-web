@@ -9,6 +9,13 @@
 import { createContext, useContext, useEffect, useCallback, useState, useRef } from 'react'
 import { GOOGLE_CLIENT_ID } from '../config'
 import { bindAuth, apiCall } from '../api/client'
+import {
+  INITIAL_INSTANCE_CONFIGURATION,
+  UNAVAILABLE_INSTANCE_CONFIGURATION,
+  canCreateInvoiceDocuments as invoiceDocumentsReady,
+  canUseTaxCalculations as taxCalculationsReady,
+  normalizeInvoiceConfiguration,
+} from './invoiceConfiguration'
 
 const AuthContext = createContext(null)
 
@@ -65,6 +72,7 @@ export function AuthProvider({ children }) {
   const [expired, setExpired] = useState(false)
   const [me, setMe] = useState(null)
   const [bootstrap, setBootstrap] = useState(null)
+  const [instanceConfiguration, setInstanceConfiguration] = useState(INITIAL_INSTANCE_CONFIGURATION)
   const [loginError, setLoginError] = useState('')
   const tokenRef = useRef(validToken())
 
@@ -79,6 +87,23 @@ export function AuthProvider({ children }) {
     bindAuth({ token: () => tokenRef.current, unauthorized: handleUnauthorized })
   }, [handleUnauthorized])
 
+  const invalidateInstanceConfiguration = useCallback(() => {
+    setInstanceConfiguration(UNAVAILABLE_INSTANCE_CONFIGURATION)
+  }, [])
+
+  const refreshInstanceConfiguration = useCallback(async () => {
+    try {
+      const data = await apiCall('getInstanceConfigurationStatus')
+      const normalized = normalizeInvoiceConfiguration(data)
+      setInstanceConfiguration(normalized)
+      return normalized
+    } catch (error) {
+      if (error?.code === 'UNAUTHORIZED') throw error
+      setInstanceConfiguration(UNAVAILABLE_INSTANCE_CONFIGURATION)
+      return UNAVAILABLE_INSTANCE_CONFIGURATION
+    }
+  }, [])
+
   const onCredential = useCallback(async (response) => {
     const token = response.credential
     tokenRef.current = token
@@ -88,6 +113,7 @@ export function AuthProvider({ children }) {
       const boot = await apiCall('getAppBootstrap')
       setMe(boot.me)
       setBootstrap(boot)
+      await refreshInstanceConfiguration()
       setStatus('signedIn')
       setExpired(false)
     } catch (e) {
@@ -101,7 +127,7 @@ export function AuthProvider({ children }) {
           : 'Prihlásenie zlyhalo: ' + e.message
       )
     }
-  }, [])
+  }, [refreshInstanceConfiguration])
 
   const onCredentialRef = useRef(onCredential)
   useEffect(() => { onCredentialRef.current = onCredential }, [onCredential])
@@ -128,7 +154,13 @@ export function AuthProvider({ children }) {
       if (saved) {
         tokenRef.current = saved
         apiCall('getAppBootstrap')
-          .then((boot) => { if (!cancelled) { setMe(boot.me); setBootstrap(boot); setStatus('signedIn'); setExpired(false) } })
+          .then(async (boot) => {
+            if (cancelled) return
+            setMe(boot.me)
+            setBootstrap(boot)
+            await refreshInstanceConfiguration()
+            if (!cancelled) { setStatus('signedIn'); setExpired(false) }
+          })
           .catch(() => {
             if (cancelled) return
             if (localStorage.getItem(SESSION_HINT_KEY)) promptRenewal()
@@ -145,7 +177,7 @@ export function AuthProvider({ children }) {
     }
     init()
     return () => { cancelled = true }
-  }, [])
+  }, [refreshInstanceConfiguration])
 
   useEffect(() => {
     if (status !== 'signedIn') return
@@ -163,6 +195,8 @@ export function AuthProvider({ children }) {
     clearStoredAuth()
     tokenRef.current = null
     setMe(null)
+    setBootstrap(null)
+    setInstanceConfiguration(INITIAL_INSTANCE_CONFIGURATION)
     setExpired(false)
     setStatus('signedOut')
     if (window.google) window.google.accounts.id.disableAutoSelect()
@@ -191,6 +225,11 @@ export function AuthProvider({ children }) {
     status, expired, me, can, hasModule, signOut, gisReady, loginError,
     expectedSections: bootstrap?.expectedSections || null,
     settings: bootstrap?.settings || null,
+    instanceConfiguration,
+    refreshInstanceConfiguration,
+    invalidateInstanceConfiguration,
+    canUseTaxCalculations: taxCalculationsReady(instanceConfiguration),
+    canCreateInvoiceDocuments: invoiceDocumentsReady(instanceConfiguration),
     refreshBootstrap,
   }
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

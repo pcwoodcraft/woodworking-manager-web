@@ -1,6 +1,7 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { Link, NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import LoginScreen from '../auth/LoginScreen'
+import { configurationNotice } from '../auth/invoiceConfiguration'
 
 // Položky menu: zobrazia sa len s príslušným právom a len ak je modul v inštancii aktívny
 // (oboje kozmetika — server kontroluje právo aj modul sám).
@@ -19,7 +20,13 @@ const MENU = [
 ]
 
 export default function Layout() {
-  const { me, can, hasModule, signOut, expired } = useAuth()
+  const { me, can, hasModule, signOut, expired, instanceConfiguration } = useAuth()
+  const notice = configurationNotice({
+    config: instanceConfiguration,
+    moduleEnabled: hasModule('invoicing'),
+    isAdmin: can('perm_admin'),
+    canIssue: can('perm_invoices_add') || can('perm_invoices_full'),
+  })
   return (
     <div className="layout">
       <aside className="sidebar">
@@ -42,6 +49,12 @@ export default function Layout() {
         </div>
       </aside>
       <main className="content">
+        {notice && (
+          <div className="configuration-banner" role="alert">
+            <div><strong>{notice.title}</strong><p>{notice.message}</p></div>
+            {notice.showAdminLink && <Link to="/administracia">Otvoriť nastavenia</Link>}
+          </div>
+        )}
         <Outlet />
       </main>
       {expired && <LoginScreen overlay />}
