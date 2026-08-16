@@ -12,6 +12,8 @@ import CreditNoteModal from './CreditNoteModal'
 import CreditNoteRefundModal from './CreditNoteRefundModal'
 import { useAuth } from '../../auth/AuthContext'
 
+const INVOICE_CONFIGURATION_REASON = 'Najprv treba doplniť platnú daňovú a fakturačnú konfiguráciu.'
+
 // Audit T1-02(b): opravné doklady sa v zozname musia dať odlíšiť. Do TYPE_LABELS
 // vo formulári vystavenia zámerne NEPATRIA — vystavujú sa vlastnou cestou.
 const CREDIT_NOTE_LABELS = { storno: 'Storno (rad D)', dobropis: 'Dobropis (rad D)' }
@@ -172,7 +174,7 @@ function IssuedForm({ invoice, projects, onClose, onSaved }) {
 
 export default function Invoices() {
   const toast = useToast()
-  const { can } = useAuth()
+  const { can, canCreateInvoiceDocuments } = useAuth()
   const canInvoicesAdd = can('perm_invoices_add')
   // F5/T1-02: mazanie VYDANEJ faktúry má vlastné právo — naraz ho môže mať len jeden aktívny
   // používateľ. Prijatá faktúra je doklad dodávateľa, nie náš doklad so zákonným číslom, takže
@@ -241,6 +243,7 @@ export default function Invoices() {
   }
 
   const createOstra = async (inv) => {
+    if (!canCreateInvoiceDocuments) { toast(INVOICE_CONFIGURATION_REASON, 'err'); return }
     if (!window.confirm('Vystaviť ostrú faktúru k uhradenej zálohe ' + inv.number + '?')) return
     try {
       const r = await apiCall('createOstraInvoiceFromAdvance', { advanceInvoiceId: inv.id })
@@ -266,8 +269,18 @@ export default function Invoices() {
     <div className="page">
       <header className="page-head">
         <h1>Faktúry</h1>
-        {tab === 'vydane' && <button className="btn" onClick={() => setModal('new-issued')}>+ Vystaviť faktúru</button>}
+        {tab === 'vydane' && <button
+          className="btn"
+          onClick={() => setModal('new-issued')}
+          disabled={!canCreateInvoiceDocuments}
+          title={!canCreateInvoiceDocuments ? INVOICE_CONFIGURATION_REASON : undefined}
+          aria-describedby={!canCreateInvoiceDocuments ? 'invoice-configuration-reason' : undefined}
+        >+ Vystaviť faktúru</button>}
       </header>
+
+      {tab === 'vydane' && !canCreateInvoiceDocuments && (
+        <p id="invoice-configuration-reason" className="budget-label-warn">{INVOICE_CONFIGURATION_REASON}</p>
+      )}
 
       <div className="tabs">
         <button className={tab === 'prijate' ? 'tab active' : 'tab'} onClick={() => setTab('prijate')}>Prijaté ({data.incoming.length})</button>
@@ -371,13 +384,21 @@ export default function Invoices() {
                       )}
                       {i.type === 'zalohova' && st === 'Uhradená' && !hasOstraForAdvance(data.invoices, i.id) && (
                         <button className="btn btn-sm btn-secondary" style={{ marginRight: 6 }}
-                          onClick={() => createOstra(i)}>Ostrá faktúra</button>
+                          onClick={() => createOstra(i)}
+                          disabled={!canCreateInvoiceDocuments}
+                          title={!canCreateInvoiceDocuments ? INVOICE_CONFIGURATION_REASON : undefined}
+                          aria-describedby={!canCreateInvoiceDocuments ? 'invoice-configuration-reason' : undefined}
+                        >Ostrá faktúra</button>
                       )}
                       {/* Opravný doklad: nie k ostrej (tá zrkadlí zálohu), nie k inému opravnému
                           dokladu a nie k už stornovanej faktúre. Server to isté vynucuje. */}
                       {canInvoicesFull && !isOstra && !jeOpravnyDoklad(i) && st !== 'Stornovaná' && (
                         <button className="btn btn-sm btn-secondary" style={{ marginRight: 6 }}
-                          onClick={() => { setChybaOpravy(''); setOpravaFaktury(i) }}>Opravný doklad</button>
+                          onClick={() => { setChybaOpravy(''); setOpravaFaktury(i) }}
+                          disabled={!canCreateInvoiceDocuments}
+                          title={!canCreateInvoiceDocuments ? INVOICE_CONFIGURATION_REASON : undefined}
+                          aria-describedby={!canCreateInvoiceDocuments ? 'invoice-configuration-reason' : undefined}
+                        >Opravný doklad</button>
                       )}
                       {/* Vrátenie peňazí sa eviduje len k dobropisu — storno smie len na
                           neuhradenú faktúru, takže tam nikdy nie je čo vracať. */}
@@ -426,11 +447,13 @@ export default function Invoices() {
       {opravaFaktury && (
         <CreditNoteModal
           invoice={opravaFaktury}
+          creationAllowed={canCreateInvoiceDocuments}
           uhradene={opravaFaktury.status === 'Neuhradená' ? 0 : parseNum(opravaFaktury.amountNet ?? opravaFaktury.amount)}
           saving={pracujem}
           serverError={chybaOpravy}
           onClose={() => { if (!pracujem) { setOpravaFaktury(null); setChybaOpravy('') } }}
           onConfirm={async (data) => {
+            if (!canCreateInvoiceDocuments) { toast(INVOICE_CONFIGURATION_REASON, 'err'); return }
             if (pracujem) return
             setPracujem(true); setChybaOpravy('')
             try {
@@ -499,6 +522,7 @@ export default function Invoices() {
       )}
       {modal === 'new-issued' && (
         <CreateIssuedInvoiceForm
+          creationAllowed={canCreateInvoiceDocuments}
           projects={data.projects}
           customers={data.customers}
           onClose={() => setModal(null)}

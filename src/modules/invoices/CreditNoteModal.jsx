@@ -10,8 +10,9 @@ import { fmtMoney, parseNum } from '../../utils/format'
 // Preto sa pri uhradenej faktúre voľba „storno" vôbec neponúka — server ju odmietne, ale
 // je lepšie neponúknuť cestu, ktorá nikam nevedie, než na nej používateľa nechať naraziť.
 const MIN_DOVOD = 5
+const INVOICE_CONFIGURATION_REASON = 'Najprv treba doplniť platnú daňovú a fakturačnú konfiguráciu.'
 
-export default function CreditNoteModal({ invoice, uhradene, onClose, onConfirm, saving, serverError }) {
+export default function CreditNoteModal({ invoice, uhradene, onClose, onConfirm, saving, serverError, creationAllowed = false }) {
   const jeUhradena = Number(uhradene || 0) > 0
   const [typ, setTyp] = useState(jeUhradena ? 'dobropis' : 'storno')
   const [suma, setSuma] = useState('')
@@ -24,9 +25,10 @@ export default function CreditNoteModal({ invoice, uhradene, onClose, onConfirm,
   const celkom = Math.abs(parseNum(invoice.amountNet ?? invoice.amount ?? 0))
   const dovodOk = dovod.trim().length >= MIN_DOVOD
   const sumaOk = typ === 'storno' || parseNum(suma) > 0
-  const mozem = dovodOk && sumaOk && !saving
+  const mozem = creationAllowed && dovodOk && sumaOk && !saving
 
   const submit = () => {
+    if (!creationAllowed) return
     if (!mozem) return
     onConfirm({
       type: typ,
@@ -39,10 +41,20 @@ export default function CreditNoteModal({ invoice, uhradene, onClose, onConfirm,
     <Modal title={'Opravný doklad k faktúre ' + (cislo || '')} onClose={onClose}
       footer={<>
         <button className="btn btn-secondary" onClick={onClose} disabled={saving}>Zrušiť</button>
-        <button className="btn" onClick={submit} disabled={!mozem}>
+        <button
+          className="btn"
+          onClick={submit}
+          disabled={!mozem}
+          title={!creationAllowed ? INVOICE_CONFIGURATION_REASON : undefined}
+          aria-describedby={!creationAllowed ? 'credit-note-configuration-reason' : undefined}
+        >
           {saving ? 'Vystavuje sa…' : 'Vystaviť doklad'}
         </button>
       </>}>
+
+      {!creationAllowed && (
+        <p id="credit-note-configuration-reason" className="budget-label-warn">{INVOICE_CONFIGURATION_REASON}</p>
+      )}
 
       <p style={{ marginTop: 0, marginBottom: 12 }}>
         Faktúra <strong>{cislo || '—'}</strong> pre <strong>{invoice.customer || '—'}</strong> na

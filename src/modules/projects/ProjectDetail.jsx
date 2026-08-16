@@ -34,6 +34,7 @@ import {
 
 const CreateIssuedInvoiceForm = lazy(() => import('../invoices/CreateIssuedInvoiceForm'))
 const InvoicePaymentModal = lazy(() => import('../invoices/InvoicePaymentModal'))
+const INVOICE_CONFIGURATION_REASON = 'Najprv treba doplniť platnú daňovú a fakturačnú konfiguráciu.'
 
 const CONFIRM_STATUSES = {
   zruseny: 'Naozaj označiť projekt ako zrušený?',
@@ -233,7 +234,7 @@ function BudgetOverview({ summary, project, vatRate }) {
 export default function ProjectDetail() {
   const { id } = useParams()
   const toast = useToast()
-  const { can, hasModule, expectedSections, refreshBootstrap, settings } = useAuth()
+  const { can, hasModule, expectedSections, refreshBootstrap, settings, canCreateInvoiceDocuments } = useAuth()
   const canWrite = can('perm_projects_write')
   const canHours = can('perm_timesheets')
   // Modul sa k právu PRIDÁVA, nenahrádza ho — pôvodné `can('perm_invoices_*')` zostáva podmienkou.
@@ -410,6 +411,7 @@ export default function ProjectDetail() {
   const closeAndReload = () => { setModal(null); reload() }
 
   const issueAdvance = async () => {
+    if (!canCreateInvoiceDocuments) { toast(INVOICE_CONFIGURATION_REASON, 'err'); return }
     const pct = window.prompt('Percento zálohy z ceny zákazky:', '50')
     if (pct == null) return
     const advancePercent = parseNum(pct)
@@ -428,6 +430,7 @@ export default function ProjectDetail() {
   }
 
   const issueBalance = async () => {
+    if (!canCreateInvoiceDocuments) { toast(INVOICE_CONFIGURATION_REASON, 'err'); return }
     if (!hasOstraInvoice) {
       toast('Najprv vystavte ostrú faktúru k uhradenej zálohe', 'err')
       return
@@ -443,6 +446,7 @@ export default function ProjectDetail() {
   }
 
   const createOstra = async (inv) => {
+    if (!canCreateInvoiceDocuments) { toast(INVOICE_CONFIGURATION_REASON, 'err'); return }
     if (!window.confirm('Vystaviť ostrú faktúru k zálohe ' + inv.number + '?')) return
     try {
       const r = await apiCall('createOstraInvoiceFromAdvance', { advanceInvoiceId: inv.id, language: invoiceLang })
@@ -730,15 +734,31 @@ export default function ProjectDetail() {
                         <option value="en">English</option>
                       </select>
                     </label>
-                    <button className="btn btn-sm btn-secondary" onClick={issueAdvance}>Zálohová faktúra</button>
+                    <button
+                      className="btn btn-sm btn-secondary"
+                      onClick={issueAdvance}
+                      disabled={!canCreateInvoiceDocuments}
+                      title={!canCreateInvoiceDocuments ? INVOICE_CONFIGURATION_REASON : undefined}
+                      aria-describedby={!canCreateInvoiceDocuments ? 'project-invoice-configuration-reason' : undefined}
+                    >Zálohová faktúra</button>
                     <button className="btn btn-sm btn-secondary" onClick={issueBalance}
-                      disabled={!hasOstraInvoice || hasBalanceInvoice}
-                      title={!hasOstraInvoice ? 'Najprv ostrá faktúra k zálohe' : hasBalanceInvoice ? 'Dofakturácia už existuje' : ''}
+                      disabled={!canCreateInvoiceDocuments || !hasOstraInvoice || hasBalanceInvoice}
+                      title={!canCreateInvoiceDocuments ? INVOICE_CONFIGURATION_REASON : !hasOstraInvoice ? 'Najprv ostrá faktúra k zálohe' : hasBalanceInvoice ? 'Dofakturácia už existuje' : ''}
+                      aria-describedby={!canCreateInvoiceDocuments ? 'project-invoice-configuration-reason' : undefined}
                     >Dofakturovať</button>
-                    <button className="btn btn-sm" onClick={() => setModal('issued')}>+ Vystaviť faktúru</button>
+                    <button
+                      className="btn btn-sm"
+                      onClick={() => setModal('issued')}
+                      disabled={!canCreateInvoiceDocuments}
+                      title={!canCreateInvoiceDocuments ? INVOICE_CONFIGURATION_REASON : undefined}
+                      aria-describedby={!canCreateInvoiceDocuments ? 'project-invoice-configuration-reason' : undefined}
+                    >+ Vystaviť faktúru</button>
                   </div>
                 )}
               </div>
+              {canInvoicesAdd && !canCreateInvoiceDocuments && (
+                <p id="project-invoice-configuration-reason" className="budget-label-warn">{INVOICE_CONFIGURATION_REASON}</p>
+              )}
               {issued.length === 0 ? <p className="muted">Žiadne vydané faktúry k projektu.</p> : (
                 <table className="table">
                   <thead><tr><th>Číslo</th><th>Typ</th><th>Vystavená</th><th>Stav</th><th className="num">Suma</th><th className="num">Uhradené</th><th /></tr></thead>
@@ -775,7 +795,13 @@ export default function ProjectDetail() {
                             </>
                           )}
                           {i.type === 'zalohova' && st === 'Uhradená' && !hasOstraForAdvance(data.invoices, i.id) && (
-                            <button className="btn btn-sm btn-secondary" onClick={() => createOstra(i)}>Ostrá faktúra</button>
+                            <button
+                              className="btn btn-sm btn-secondary"
+                              onClick={() => createOstra(i)}
+                              disabled={!canCreateInvoiceDocuments}
+                              title={!canCreateInvoiceDocuments ? INVOICE_CONFIGURATION_REASON : undefined}
+                              aria-describedby={!canCreateInvoiceDocuments ? 'project-invoice-configuration-reason' : undefined}
+                            >Ostrá faktúra</button>
                           )}
                         </td>
                       </tr>
@@ -811,6 +837,7 @@ export default function ProjectDetail() {
         <Suspense fallback={<Spinner label="Načítavam…" />}>
           <CreateIssuedInvoiceForm
             project={project}
+            creationAllowed={canCreateInvoiceDocuments}
             customers={data.customers}
             initialLanguage={invoiceLang}
             onClose={() => setModal(null)}
