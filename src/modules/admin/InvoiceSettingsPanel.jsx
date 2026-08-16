@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiCall } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import { useToast } from '../../components/Toast'
@@ -8,6 +8,7 @@ import {
   INVOICE_SETTING_KEYS,
   canLoadInvoiceSettings,
   projectInvoiceSettings,
+  requireSettingsProjection,
 } from './invoiceSettingsFields'
 
 export default function InvoiceSettingsPanel({ moduleEnabled, canRead }) {
@@ -21,6 +22,7 @@ export default function InvoiceSettingsPanel({ moduleEnabled, canRead }) {
   const [settings, setSettings] = useState(projectInvoiceSettings())
   const [nextRegular, setNextRegular] = useState('')
   const [nextAdvance, setNextAdvance] = useState('')
+  const mutationRef = useRef(false)
 
   const load = useCallback(async () => {
     if (!canLoadInvoiceSettings({ moduleEnabled, canRead })) return false
@@ -28,7 +30,7 @@ export default function InvoiceSettingsPanel({ moduleEnabled, canRead }) {
     setError(null)
     try {
       const data = await apiCall('getInvoiceSettings')
-      setSettings(projectInvoiceSettings(data?.settings))
+      setSettings(requireSettingsProjection(data?.settings, INVOICE_SETTING_KEYS))
       setNextRegular(data?.nextRegularPreview || data?.nextNumberPreview || '')
       setNextAdvance(data?.nextAdvancePreview || '')
       return true
@@ -50,10 +52,19 @@ export default function InvoiceSettingsPanel({ moduleEnabled, canRead }) {
   const set = (key) => (event) => setSettings(current => ({ ...current, [key]: event.target.value }))
 
   const save = async () => {
+    if (mutationRef.current) return
+    mutationRef.current = true
     setSaving(true)
     try {
       const data = await apiCall('saveInvoiceSettings', { settings: projectInvoiceSettings(settings) })
-      setSettings(projectInvoiceSettings(data?.settings))
+      let savedSettings
+      try {
+        savedSettings = requireSettingsProjection(data?.settings, INVOICE_SETTING_KEYS)
+      } catch {
+        toast('Nastavenia boli uložené, ale server nevrátil overiteľný aktuálny stav. Obnovte stránku.', 'err')
+        return
+      }
+      setSettings(savedSettings)
       setNextRegular(data?.nextRegularPreview || '')
       setNextAdvance(data?.nextAdvancePreview || '')
       const status = await refreshInstanceConfiguration()
@@ -63,11 +74,14 @@ export default function InvoiceSettingsPanel({ moduleEnabled, canRead }) {
       if (saveError?.code !== 'UNAUTHORIZED') toast('Nepodarilo sa uložiť: ' + saveError.message, 'err')
     } finally {
       setSaving(false)
+      mutationRef.current = false
     }
   }
 
   const sync = async () => {
+    if (mutationRef.current) return
     if (!window.confirm('Nastaviť ďalšie čísla podľa existujúcich dokladov (rady F, Z a D zvlášť)?')) return
+    mutationRef.current = true
     setSyncing(true)
     try {
       await apiCall('syncInvoiceSequence')
@@ -79,6 +93,7 @@ export default function InvoiceSettingsPanel({ moduleEnabled, canRead }) {
       if (syncError?.code !== 'UNAUTHORIZED') toast('Synchronizácia zlyhala: ' + syncError.message, 'err')
     } finally {
       setSyncing(false)
+      mutationRef.current = false
     }
   }
 
@@ -118,8 +133,8 @@ export default function InvoiceSettingsPanel({ moduleEnabled, canRead }) {
         })}
       </div>
       <div className="btn-group" style={{ marginTop: 16 }}>
-        <button className="btn" onClick={save} disabled={saving}>{saving ? 'Ukladá sa…' : 'Uložiť nastavenia'}</button>
-        <button className="btn btn-secondary" onClick={sync} disabled={syncing}>{syncing ? '…' : 'Synchronizovať rady F/Z/D'}</button>
+        <button className="btn" onClick={save} disabled={saving || syncing}>{saving ? 'Ukladá sa…' : 'Uložiť nastavenia'}</button>
+        <button className="btn btn-secondary" onClick={sync} disabled={saving || syncing}>{syncing ? '…' : 'Synchronizovať rady F/Z/D'}</button>
       </div>
     </div>
   )

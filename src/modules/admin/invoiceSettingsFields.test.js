@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   INVOICE_SETTING_KEYS,
   canLoadInvoiceSettings,
+  requireSettingsProjection,
   projectInvoiceSettings,
 } from './invoiceSettingsFields.js'
 
@@ -31,4 +32,12 @@ test('invoice settings sa načítajú iba pri module aj read práve', () => {
   assert.equal(canLoadInvoiceSettings({ moduleEnabled: false, canRead: true }), false)
   assert.equal(canLoadInvoiceSettings({ moduleEnabled: true, canRead: false }), false)
   assert.equal(canLoadInvoiceSettings({ moduleEnabled: false, canRead: false }), false)
+})
+
+test('read projekcia odmietne malformed alebo neúplný HTTP 200 envelope', () => {
+  assert.throws(() => requireSettingsProjection(undefined, ['a']))
+  assert.throws(() => requireSettingsProjection([], ['a']))
+  assert.throws(() => requireSettingsProjection({}, ['a']))
+  assert.throws(() => requireSettingsProjection({ a: 'x' }, ['a', 'b']))
+  assert.deepEqual(requireSettingsProjection({ a: 'x', b: '', injected: 'nie' }, ['a', 'b']), { a: 'x', b: '' })
 })

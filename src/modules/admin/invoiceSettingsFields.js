@@ -23,6 +23,13 @@ export const INVOICE_FIELDS = [
 
 export const INVOICE_SETTING_KEYS = INVOICE_FIELDS.map(field => field.key)
 
+export function requireSettingsProjection(raw, keys) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !keys.every(key => Object.hasOwn(raw, key))) {
+    throw new Error('Server vrátil neúplné nastavenia.')
+  }
+  return Object.fromEntries(keys.map(key => [key, raw[key] ?? '']))
+}
+
 export function projectInvoiceSettings(raw = {}) {
   return Object.fromEntries(INVOICE_SETTING_KEYS.map(key => [key, raw?.[key] ?? '']))
 }

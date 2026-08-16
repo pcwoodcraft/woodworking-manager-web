@@ -3,11 +3,10 @@ import { apiCall } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import { ErrorBox } from '../../components/ui'
 import { useToast } from '../../components/Toast'
+import { requireSettingsProjection } from './invoiceSettingsFields'
 
-const projectTaxSettings = (raw = {}) => ({
-  companyTaxRegime: raw?.companyTaxRegime ?? '',
-  vatRate: raw?.vatRate ?? '',
-})
+const TAX_SETTING_KEYS = ['companyTaxRegime', 'vatRate']
+const projectTaxSettings = (raw = {}) => Object.fromEntries(TAX_SETTING_KEYS.map(key => [key, raw?.[key] ?? '']))
 
 export default function TaxSettingsPanel() {
   const toast = useToast()
@@ -27,7 +26,7 @@ export default function TaxSettingsPanel() {
     setError(null)
     try {
       const data = await apiCall('getTaxSettings')
-      setSettings(projectTaxSettings(data?.settings))
+      setSettings(requireSettingsProjection(data?.settings, TAX_SETTING_KEYS))
     } catch (loadError) {
       setError(loadError)
     } finally {
@@ -47,7 +46,15 @@ export default function TaxSettingsPanel() {
     setSaving(true)
     try {
       const data = await apiCall('saveTaxSettings', { settings: projectTaxSettings(settings) })
-      setSettings(projectTaxSettings(data?.settings))
+      let savedSettings
+      try {
+        savedSettings = requireSettingsProjection(data?.settings, TAX_SETTING_KEYS)
+      } catch {
+        invalidateInstanceConfiguration()
+        toast('Nastavenia boli uložené, ale server nevrátil overiteľný aktuálny stav. Obnovte stránku.', 'err')
+        return
+      }
+      setSettings(savedSettings)
       try {
         await refreshBootstrap()
         const status = await refreshInstanceConfiguration()

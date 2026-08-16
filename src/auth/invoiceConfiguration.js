@@ -23,8 +23,11 @@ export const UNAVAILABLE_INSTANCE_CONFIGURATION = Object.freeze({
 function normalizeScope(scope, allowedKeys) {
   if (!scope || typeof scope !== 'object' || typeof scope.ready !== 'boolean' || !Array.isArray(scope.issues)) return null
   const issues = []
+  const seen = new Set()
   for (const issue of scope.issues) {
     if (!issue || typeof issue !== 'object' || !allowedKeys.has(issue.key) || !ISSUE_KINDS.has(issue.kind)) return null
+    if (seen.has(issue.key)) return null
+    seen.add(issue.key)
     issues.push({ key: issue.key, kind: issue.kind })
   }
   if (scope.ready && issues.length) return null
@@ -35,7 +38,16 @@ export function normalizeInvoiceConfiguration(data) {
   if (!data || typeof data !== 'object') return UNAVAILABLE_INSTANCE_CONFIGURATION
   const tax = normalizeScope(data.tax, TAX_KEYS)
   const invoicing = normalizeScope(data.invoicing, INVOICING_KEYS)
-  return tax && invoicing ? { state: 'loaded', tax, invoicing } : UNAVAILABLE_INSTANCE_CONFIGURATION
+  if (!tax || !invoicing || (!tax.ready && invoicing.ready)) return UNAVAILABLE_INSTANCE_CONFIGURATION
+  const taxIssues = new Map(tax.issues.map(issue => [issue.key, issue.kind]))
+  const invoiceTaxIssues = new Map(invoicing.issues
+    .filter(issue => TAX_KEYS.has(issue.key))
+    .map(issue => [issue.key, issue.kind]))
+  if (taxIssues.size !== invoiceTaxIssues.size) return UNAVAILABLE_INSTANCE_CONFIGURATION
+  for (const [key, kind] of taxIssues) {
+    if (invoiceTaxIssues.get(key) !== kind) return UNAVAILABLE_INSTANCE_CONFIGURATION
+  }
+  return { state: 'loaded', tax, invoicing }
 }
 
 export const canUseTaxCalculations = (config) =>
@@ -70,12 +82,16 @@ export function configurationNotice({ config, moduleEnabled, isAdmin, canIssue }
   const invoiceAudience = moduleEnabled === true && (isAdmin === true || canIssue === true)
   if (!isAdmin && !invoiceAudience) return null
   if (config?.state === 'loading') {
-    return { title: 'Overuje sa konfigurácia', message: 'Overuje sa pripravenosť fakturácie.', showAdminLink: false }
+    return invoiceAudience
+      ? { title: 'Overuje sa konfigurácia', message: 'Overuje sa pripravenosť fakturácie.', showAdminLink: false }
+      : { title: 'Overuje sa daňová konfigurácia', message: 'Overuje sa pripravenosť daňových nastavení.', showAdminLink: false }
   }
   if (config?.state !== 'loaded') {
     return {
-      title: 'Konfiguráciu sa nepodarilo overiť',
-      message: 'Konfiguráciu sa nepodarilo overiť. Daňové a fakturačné operácie zostávajú z bezpečnostných dôvodov zablokované.',
+      title: invoiceAudience ? 'Konfiguráciu sa nepodarilo overiť' : 'Daňovú konfiguráciu sa nepodarilo overiť',
+      message: invoiceAudience
+        ? 'Konfiguráciu sa nepodarilo overiť. Daňové a fakturačné operácie zostávajú z bezpečnostných dôvodov zablokované.'
+        : 'Daňovú konfiguráciu sa nepodarilo overiť. Daňové operácie zostávajú z bezpečnostných dôvodov zablokované.',
       showAdminLink: isAdmin === true,
     }
   }
