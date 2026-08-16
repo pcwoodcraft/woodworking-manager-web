@@ -13,7 +13,7 @@ import {
 
 export default function InvoiceSettingsPanel({ moduleEnabled, canRead }) {
   const toast = useToast()
-  const { instanceConfiguration, refreshInstanceConfiguration } = useAuth()
+  const { instanceConfiguration, refreshInstanceConfiguration, invalidateInstanceConfiguration } = useAuth()
   const access = canLoadInvoiceSettings({ moduleEnabled, canRead })
   const [loading, setLoading] = useState(access)
   const [error, setError] = useState(null)
@@ -61,6 +61,7 @@ export default function InvoiceSettingsPanel({ moduleEnabled, canRead }) {
       try {
         savedSettings = requireSettingsProjection(data?.settings, INVOICE_SETTING_KEYS)
       } catch {
+        invalidateInstanceConfiguration()
         toast('Nastavenia boli uložené, ale server nevrátil overiteľný aktuálny stav. Obnovte stránku.', 'err')
         return
       }

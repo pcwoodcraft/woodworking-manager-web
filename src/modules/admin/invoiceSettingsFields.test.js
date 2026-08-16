@@ -39,5 +39,8 @@ test('read projekcia odmietne malformed alebo neúplný HTTP 200 envelope', () =
   assert.throws(() => requireSettingsProjection([], ['a']))
   assert.throws(() => requireSettingsProjection({}, ['a']))
   assert.throws(() => requireSettingsProjection({ a: 'x' }, ['a', 'b']))
+  for (const malformed of [null, {}, 42, true]) {
+    assert.throws(() => requireSettingsProjection({ a: malformed }, ['a']))
+  }
   assert.deepEqual(requireSettingsProjection({ a: 'x', b: '', injected: 'nie' }, ['a', 'b']), { a: 'x', b: '' })
 })
