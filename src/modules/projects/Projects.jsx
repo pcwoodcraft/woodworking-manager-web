@@ -8,7 +8,7 @@ import ProjectForm from './ProjectForm'
 import { fmtMoney, fmtDate, fmtPercent, toIsoDate, PROJECT_STATUSES, normalizeStatus, isRunningStatus, budgetLevel, priorityLabel, sortProjectsForSchedule, projectPriceNet } from '../../utils/format'
 
 export default function Projects() {
-  const { can, expectedSections, refreshBootstrap } = useAuth()
+  const { can, expectedSections, refreshBootstrap, settings } = useAuth()
   const navigate = useNavigate()
   const canWrite = can('perm_projects_write')
   const [state, setState] = useState({ loading: true, error: null })
@@ -118,7 +118,7 @@ export default function Projects() {
                   <td><StatusBadge status={p.status} /></td>
                   <td>{priorityLabel(p.priority)}</td>
                   <td>{fmtDate(p.deadline)}</td>
-                  <td className="num">{fmtMoney(projectPriceNet(p))}</td>
+                  <td className="num">{fmtMoney(projectPriceNet(p, settings?.vatRate))}</td>
                   <td className={'num' + (level === 'over' ? ' budget-label-over' : level === 'warn' ? ' budget-label-warn' : '')}>
                     {w ? fmtPercent(w.costPercent) : '—'}
                   </td>

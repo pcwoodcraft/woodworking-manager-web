@@ -5,6 +5,7 @@ import { Spinner, ErrorBox } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import Modal from '../../components/Modal'
 import InvoiceSettingsPanel from './InvoiceSettingsPanel'
+import TaxSettingsPanel from './TaxSettingsPanel'
 import ProjectDefaultsPanel from './ProjectDefaultsPanel'
 import DiagnosticsPanel from './DiagnosticsPanel'
 import FailedTimeEntriesPanel from './FailedTimeEntriesPanel'
@@ -137,7 +138,7 @@ function EditUserModal({ user, selfEmail, onClose, onSaved }) {
 }
 
 export default function Admin() {
-  const { me } = useAuth()
+  const { me, hasModule, can } = useAuth()
   const toast = useToast()
   const [state, setState] = useState({ loading: true, error: null })
   const [users, setUsers] = useState([])
@@ -214,8 +215,16 @@ export default function Admin() {
       </div>
 
       <div className="card" style={{ marginBottom: 20 }}>
+        <h2>Daňové nastavenia inštancie</h2>
+        <TaxSettingsPanel />
+      </div>
+
+      <div className="card" style={{ marginBottom: 20 }}>
         <h2>Fakturácia — firemné údaje</h2>
-        <InvoiceSettingsPanel />
+        <InvoiceSettingsPanel
+          moduleEnabled={hasModule('invoicing')}
+          canRead={can('perm_invoices_full')}
+        />
       </div>
 
       <ProjectDefaultsPanel />

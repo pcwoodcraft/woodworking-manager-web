@@ -5,6 +5,8 @@ import { apiCall } from '../../api/client'
 import { fmtMoney, parseNum, toIsoDate } from '../../utils/format'
 import { TYPE_LABELS } from '../../shared/invoiceTypeLabels'
 
+const INVOICE_CONFIGURATION_REASON = 'Najprv treba doplniť platnú daňovú a fakturačnú konfiguráciu.'
+
 const emptyItem = () => ({ description: '', quantity: '1', unit: 'ks', unitPriceNet: '' })
 
 function isForeignVatCustomer(customer) {
@@ -21,6 +23,7 @@ export default function CreateIssuedInvoiceForm({
   initialType = 'faktura',
   initialItems,
   initialLanguage = 'sk',
+  creationAllowed = false,
   onClose,
   onSaved,
 }) {
@@ -102,6 +105,7 @@ export default function CreateIssuedInvoiceForm({
   }, [selectedCustomer?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = async () => {
+    if (!creationAllowed) { toast(INVOICE_CONFIGURATION_REASON, 'err'); return }
     if (!f.customer.trim() && !f.customerId) {
       toast('Vyplňte zákazníka', 'err')
       return
@@ -167,12 +171,21 @@ export default function CreateIssuedInvoiceForm({
       footer={
         <>
           <button className="btn btn-secondary" onClick={onClose}>Zrušiť</button>
-          <button className="btn" onClick={save} disabled={saving || loading}>
+          <button
+            className="btn"
+            onClick={save}
+            disabled={saving || loading || !creationAllowed}
+            title={!creationAllowed ? INVOICE_CONFIGURATION_REASON : undefined}
+            aria-describedby={!creationAllowed ? 'create-invoice-configuration-reason' : undefined}
+          >
             {saving ? 'Vystavuje sa…' : 'Vystaviť faktúru'}
           </button>
         </>
       }
     >
+      {!creationAllowed && (
+        <p id="create-invoice-configuration-reason" className="budget-label-warn">{INVOICE_CONFIGURATION_REASON}</p>
+      )}
       {loading ? (
         <p className="muted">Načítava sa…</p>
       ) : (
