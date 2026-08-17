@@ -13,7 +13,7 @@ import {
 import { LOST_REASONS } from '../../shared/lostReasons'
 import { quoteStatusLabel } from '../../shared/quoteStatusLabel'
 import SalesOwnerSelect from '../customers/SalesOwnerSelect'
-import { fileToBase64, newClientFileId } from '../../utils/files'
+import { fileToBase64, newClientFileId, uploadQuotePdfFile } from '../../utils/files'
 import DealMoveModal from '../customers/DealMoveModal'
 
 // Oba komponenty patria modulu projektov — načítajú sa až keď ich používateľ naozaj potrebuje,
@@ -196,7 +196,7 @@ export default function DealDetailModal({ dealId, onClose, onUpdated }) {
         reader.onerror = reject
         reader.readAsDataURL(file)
       })
-      await apiCall('uploadQuotePdf', {
+      await uploadQuotePdfFile(apiCall, {
         customerId: data.deal.customerId,
         dealId,
         title: quoteForm.title.trim(),
