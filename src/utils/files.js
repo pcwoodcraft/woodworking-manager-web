@@ -10,3 +10,8 @@ export function fileToBase64(file) {
 export function newClientFileId() {
   return globalThis.crypto?.randomUUID?.() || (Date.now() + '-' + Math.random().toString(16).slice(2))
 }
+
+export function uploadQuotePdfFile(apiCall, payload) {
+  const clientUploadId = newClientFileId()
+  return apiCall('uploadQuotePdf', { ...payload, clientUploadId })
+}
