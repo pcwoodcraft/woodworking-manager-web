@@ -251,6 +251,20 @@ export default function Invoices() {
     }
   }
 
+  // Faktúra vystavená pred doplnením fakturačných údajov má tie údaje aj v PDF prázdne.
+  // Číslo ani sumy sa nemenia — PDF sa len vykreslí nanovo zo živých dát a starý súbor
+  // na Drive ide do koša, aby v priečinku nezostali dve verzie toho istého čísla.
+  const regeneratePdf = async (inv) => {
+    if (!window.confirm('Pregenerovať PDF faktúry ' + inv.number + ' z aktuálnych údajov?\nČíslo ani sumy sa nemenia, pôvodné PDF na Drive sa nahradí.')) return
+    try {
+      await apiCall('regenerateInvoicePdf', { id: inv.id })
+      toast('PDF faktúry ' + inv.number + ' pregenerované')
+      load()
+    } catch (e) {
+      toast('Nepodarilo sa pregenerovať PDF: ' + e.message, 'err')
+    }
+  }
+
   const togglePaid = async (inv) => {
     const next = inv.status === 'Zaplatená' ? 'Nezaplatená' : 'Zaplatená'
     try {
@@ -384,6 +398,10 @@ export default function Invoices() {
                       {canInvoicesAdd && i.type === 'dobropis' && (
                         <button className="btn btn-sm btn-secondary" style={{ marginRight: 6 }}
                           onClick={() => { setChybaOpravy(''); setVratenieDokladu(i) }}>Vrátenie peňazí</button>
+                      )}
+                      {canInvoicesAdd && (
+                        <button className="icon-btn" title="Pregenerovať PDF z aktuálnych údajov"
+                          onClick={() => regeneratePdf(i)}>↻</button>
                       )}
                       <button className="icon-btn" title="Upraviť" onClick={() => setModal({ type: 'issued', inv: i })}>✎</button>
                       {canInvoicesDelete && (
