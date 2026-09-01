@@ -38,7 +38,7 @@ async function rawCall(action, payload) {
   return json.data
 }
 
-const RETRYABLE = new Set(['HTTP_429', 'HTTP_500', 'HTTP_502', 'HTTP_503'])
+const RETRYABLE = new Set(['INTERNAL', 'HTTP_429', 'HTTP_500', 'HTTP_502', 'HTTP_503'])
 const TIMING_KEY = 'pcw_api_timings'
 
 function logApiTiming(action, ms, ok) {
