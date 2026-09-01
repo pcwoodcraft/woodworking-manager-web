@@ -53,14 +53,16 @@ src/
 | Projekty | stavy, náklady, faktúry, **úhrady od zákazníka**, odovzdanie, súbory na Drive |
 | Faktúry | prijaté + vydané; u vydaných **+ Úhrada** / Uhradiť zvyšok |
 | Ekonomika | cash-flow mesiac po mesiaci; karty príjmy/výdavky + tabuľka úhrad projektov |
-| Zamestnanci | evidencia, mesačný výkaz a analytika času podľa zamestnancov, projektov a činností; neutrálne porovnanie |
+| Zamestnanci | evidencia, mesačný výkaz, analytika času podľa zamestnancov, projektov a činností, denný rozpis a admin oprava záznamov |
 | Administrácia | používatelia, firemné údaje faktúr, **denný e-mail pripomienok**, záloha DB, dielenské chyby |
 
 ### Zamestnanci — analytika práce (`/zamestnanci`)
 
 Route vyžaduje aktívny modul `employees` a právo `perm_employees`. Mesačný výkaz a analytika sa zobrazia len s aktívnym modulom `workshop` a právom `perm_timesheets`; používajú existujúce odpovede `getEmployees` a `getTimeEntries`, bez nového backendu alebo databázovej migrácie.
 
-Spoločný filter obdobia a zamestnanca riadi KPI, týždenné časové rozdelenie a štyri pohľady: **Prehľad**, **Činnosti**, **Projekty** a **Porovnanie**. Prehľad obsahuje drill-down `zamestnanec → projekt → činnosť → záznam`; projekty majú vnorené činnosti a záznamy. Porovnanie dvoch ľudí je zámerne neutrálne — ukazuje iba evidovaný čas a rozdiely bez skóre, poradia alebo hodnotenia kvality práce. Pôvodný mesačný výkaz hodín a mzdových nákladov zostal zachovaný.
+Spoločný filter obdobia a zamestnanca riadi KPI, týždenné časové rozdelenie a štyri pohľady: **Prehľad**, **Činnosti**, **Projekty** a **Porovnanie**. Časové rozdelenie sa rozbaľuje `týždeň → deň → zamestnanec → záznamy`; Prehľad používa poradie `zamestnanec → projekt → činnosť → záznam`. Projekty majú vnorené činnosti a záznamy. Porovnanie dvoch ľudí je zámerne neutrálne — ukazuje iba evidovaný čas a rozdiely bez skóre, poradia alebo hodnotenia kvality práce. Pôvodný mesačný výkaz hodín a mzdových nákladov zostal zachovaný.
+
+Admin s `perm_projects_read` môže z detailu opraviť zamestnanca, projekt, činnosť, dátum, začiatok, koniec aj počet hodín. Editor používa existujúce API (`getProjects`, `getTimeEntryFormData`, `updateTimeEntry`), po uložení obnoví záznamy a prepočíta štatistiky. Zámerne dočasné obmedzenia: admin podmienka je iba vo webovom UI a zmena činnosti zapisuje text `task`, nie edge-only `task_id`; pri neskoršom presune do VIANEVIA treba činnosť kanonizovať podľa textu.
 
 ### Ekonomika (`/ekonomika`)
 
