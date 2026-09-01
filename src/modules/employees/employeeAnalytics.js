@@ -224,6 +224,9 @@ function simpleEmployeeRows(entries, options, includeEntries = false) {
   }).sort((a, b) => a.name.localeCompare(b.name, 'sk') || a.key.localeCompare(b.key))
 }
 
+const chronologicalEntries = entries => [...entries].sort((a, b) =>
+  a.startTime.localeCompare(b.startTime) || a.key.localeCompare(b.key, 'sk'))
+
 function simpleProjectRows(entries, names) {
   return [...groupBy(entries, 'projectKey')].map(([key, rows]) => ({
     key,
@@ -317,6 +320,14 @@ export function buildAnalytics(filteredRawEntries = [], employeeOptions = []) {
     start: key,
     end: shiftDate(key, 6),
     ...summarize(rows),
+    days: [...groupBy(rows, 'date')].map(([date, dayEntries]) => ({
+      key: date,
+      ...summarize(dayEntries),
+      employees: simpleEmployeeRows(dayEntries, employeeOptions, true).map(employee => ({
+        ...employee,
+        entries: chronologicalEntries(employee.entries),
+      })),
+    })).sort((a, b) => a.key.localeCompare(b.key)),
   })).sort((a, b) => a.key.localeCompare(b.key))
 
   const byCode = Object.fromEntries(ISSUE_CODES.map(code => [code, 0]))
