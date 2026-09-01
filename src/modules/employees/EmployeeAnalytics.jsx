@@ -61,12 +61,12 @@ function TableWrap({ children }) {
   return <div className="analytics-table-wrap">{children}</div>
 }
 
-function EntryTable({ entries }) {
+function EntryTable({ entries, onEdit }) {
   if (!entries.length) return null
   return (
     <TableWrap>
       <table className="table analytics-detail-table">
-        <thead><tr><th>Dátum</th><th>Čas</th><th>Zamestnanec</th><th>Projekt</th><th>Činnosť</th><th className="num">Trvanie</th></tr></thead>
+        <thead><tr><th>Dátum</th><th>Čas</th><th>Zamestnanec</th><th>Projekt</th><th>Činnosť</th><th className="num">Trvanie</th>{onEdit && <th />}</tr></thead>
         <tbody>{entries.map(entry => (
           <tr key={entry.key}>
             <td>{fmtDate(entry.date)}</td>
@@ -75,6 +75,7 @@ function EntryTable({ entries }) {
             <td>{entry.projectName}{entry.projectId ? <small className="analytics-id">ID: {entry.projectId}</small> : null}</td>
             <td>{entry.activityName}</td>
             <td className="num">{hours(entry.minutes)}</td>
+            {onEdit && <td className="row-action">{entry.id && <button type="button" className="icon-btn" title="Upraviť záznam" aria-label={`Upraviť záznam ${entry.activityName}`} onClick={() => onEdit(entry)}>✎</button>}</td>}
           </tr>
         ))}</tbody>
       </table>
@@ -95,7 +96,7 @@ function Kpis({ totals }) {
   ))}</div>
 }
 
-function Overview({ analytics }) {
+function Overview({ analytics, onEdit }) {
   const maxMinutes = Math.max(0, ...analytics.weeks.map(week => week.minutes))
   return <>
     <Kpis totals={analytics.totals} />
@@ -103,12 +104,21 @@ function Overview({ analytics }) {
       <section className="analytics-block">
         <h3>Časové rozdelenie po týždňoch</h3>
         <div className="analytics-weeks">{analytics.weeks.map(week => (
-          <div className="analytics-week" key={week.key}>
-            <div className="analytics-week-label"><span>{fmtDate(week.start)} – {fmtDate(week.end)}</span><strong>{hours(week.minutes)}</strong></div>
-            <div className="budget-bar" aria-label={`${week.label}: ${hours(week.minutes)}`}>
-              <div className="budget-fill analytics-fill" style={{ width: `${maxMinutes ? week.minutes / maxMinutes * 100 : 0}%` }} />
+          <details className="analytics-detail" key={week.key}>
+            <summary><span><strong>{fmtDate(week.start)} – {fmtDate(week.end)}</strong><small>{week.records} záznamov</small></span><span>{hours(week.minutes)}</span></summary>
+            <div className="analytics-detail-body">
+              <div className="budget-bar" aria-label={`${week.label}: ${hours(week.minutes)}`}>
+                <div className="budget-fill analytics-fill" style={{ width: `${maxMinutes ? week.minutes / maxMinutes * 100 : 0}%` }} />
+              </div>
+              {week.days.map(day => <details className="analytics-detail analytics-detail-nested" key={day.key}>
+                <summary><span><strong>{fmtDate(day.key)}</strong><small>{day.records} záznamov</small></span><span>{hours(day.minutes)}</span></summary>
+                <div className="analytics-detail-body">{day.employees.map(employee => <details className="analytics-detail analytics-detail-nested" key={employee.key}>
+                  <summary><span><strong>{employee.name}</strong><small>{employee.records} záznamov</small></span><span>{hours(employee.minutes)}</span></summary>
+                  <div className="analytics-detail-body"><EntryTable entries={employee.entries} onEdit={onEdit} /></div>
+                </details>)}</div>
+              </details>)}
             </div>
-          </div>
+          </details>
         ))}</div>
         {analytics.issues.byCode.missing_date > 0 && <p className="muted analytics-note">Čas z nedatovaných záznamov nemožno zaradiť do týždňov, preto môže byť súčet grafu nižší než celkový čas.</p>}
       </section>
@@ -138,7 +148,7 @@ function Overview({ analytics }) {
                         <span><strong>{activity.name}</strong><small>{activity.records} záznamov</small></span>
                         <span>{hours(activity.minutes)}</span>
                       </summary>
-                      <div className="analytics-detail-body"><EntryTable entries={activity.entries} /></div>
+                      <div className="analytics-detail-body"><EntryTable entries={activity.entries} onEdit={onEdit} /></div>
                     </details>
                   ))}</div>
                 </details>
@@ -161,7 +171,7 @@ function Overview({ analytics }) {
   </>
 }
 
-function Activities({ analytics }) {
+function Activities({ analytics, onEdit }) {
   if (!analytics.activities.length) return <p className="muted analytics-empty">V tomto období nie sú evidované žiadne hodiny.</p>
   return <div className="analytics-details">{analytics.activities.map(activity => (
     <details className="analytics-detail" key={activity.key}>
@@ -175,13 +185,13 @@ function Activities({ analytics }) {
         <TableWrap><table className="table"><thead><tr><th>Projekt</th><th className="num">Hodiny</th><th className="num">Záznamy</th></tr></thead><tbody>
           {activity.projects.map(project => <tr key={project.key}><td>{project.name}</td><td className="num">{hours(project.minutes)}</td><td className="num">{project.records}</td></tr>)}
         </tbody></table></TableWrap>
-        <h4>Jednotlivé záznamy</h4><EntryTable entries={activity.entries} />
+        <h4>Jednotlivé záznamy</h4><EntryTable entries={activity.entries} onEdit={onEdit} />
       </div>
     </details>
   ))}</div>
 }
 
-function Projects({ analytics }) {
+function Projects({ analytics, onEdit }) {
   if (!analytics.projects.length) return <p className="muted analytics-empty">V tomto období nie sú evidované žiadne hodiny.</p>
   return <div className="analytics-details">{analytics.projects.map(project => (
     <details className="analytics-detail" key={project.key}>
@@ -193,7 +203,7 @@ function Projects({ analytics }) {
           <div className="analytics-detail-body">
             {activity.employees.map(employee => <details className="analytics-detail analytics-detail-nested" key={employee.key}>
               <summary><span><strong>{employee.name}</strong><small>{employee.records} záznamov</small></span><span>{hours(employee.minutes)}</span></summary>
-              <div className="analytics-detail-body"><EntryTable entries={employee.entries} /></div>
+              <div className="analytics-detail-body"><EntryTable entries={employee.entries} onEdit={onEdit} /></div>
             </details>)}
           </div>
         </details>)}
@@ -229,7 +239,7 @@ function Comparison({ options, comparison, leftKey, rightKey, setLeftKey, setRig
   </>
 }
 
-export default function EmployeeAnalytics({ employees = [], entries = [] }) {
+export default function EmployeeAnalytics({ employees = [], entries = [], canEdit = false, onEdit }) {
   const [tab, setTab] = useState('overview')
   const [preset, setPreset] = useState('last90')
   const [customRange, setCustomRange] = useState({ start: '', end: '' })
@@ -275,9 +285,9 @@ export default function EmployeeAnalytics({ employees = [], entries = [] }) {
       <button type="button" className={`tab ${tab === value ? 'active' : ''}`} aria-pressed={tab === value} onClick={() => setTab(value)} key={value}>{label}</button>
     ))}</div>
 
-    {tab === 'overview' && <Overview analytics={analytics} />}
-    {tab === 'activities' && <Activities analytics={analytics} />}
-    {tab === 'projects' && <Projects analytics={analytics} />}
+    {tab === 'overview' && <Overview analytics={analytics} onEdit={canEdit ? onEdit : null} />}
+    {tab === 'activities' && <Activities analytics={analytics} onEdit={canEdit ? onEdit : null} />}
+    {tab === 'projects' && <Projects analytics={analytics} onEdit={canEdit ? onEdit : null} />}
     {tab === 'comparison' && <Comparison options={options} comparison={comparison} leftKey={leftKey} rightKey={rightKey} setLeftKey={setLeftKey} setRightKey={setRightKey} />}
   </section>
 }

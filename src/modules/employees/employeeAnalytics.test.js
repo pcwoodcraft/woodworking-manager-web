@@ -178,6 +178,20 @@ test('týždne začínajú pondelkom a nedatovaný záznam nevytvorí prázdny t
   assert.ok(comparison.weeks.every(week => week.key))
 })
 
+test('týždeň obsahuje chronologické dni, zamestnancov a ich záznamy', () => {
+  const dailyEntries = [
+    { id: 'D3', employeeId: 'E2', employeeName: 'Boris Majster', projectId: 'P1', projectName: 'Kuchyňa', task: 'Montáž', date: '2026-08-04', startTime: '2026-08-04T09:00:00+02:00', endTime: '2026-08-04T10:00:00+02:00', durationMin: 60 },
+    { id: 'D2', employeeId: 'E1', employeeName: 'Anna Stolárka', projectId: 'P1', projectName: 'Kuchyňa', task: 'Brúsenie', date: '2026-08-03', startTime: '2026-08-03T10:00:00+02:00', endTime: '2026-08-03T11:00:00+02:00', durationMin: 60 },
+    { id: 'D1', employeeId: 'E1', employeeName: 'Anna Stolárka', projectId: 'P1', projectName: 'Kuchyňa', task: 'Rezanie', date: '2026-08-03', startTime: '2026-08-03T07:00:00+02:00', endTime: '2026-08-03T08:00:00+02:00', durationMin: 60 },
+    { id: 'D4', employeeId: 'E2', employeeName: 'Boris Majster', projectId: 'P1', projectName: 'Kuchyňa', task: 'Balenie', date: '2026-08-03', startTime: '2026-08-03T08:00:00+02:00', endTime: '2026-08-03T09:00:00+02:00', durationMin: 60 },
+  ]
+  const analytics = buildAnalytics(dailyEntries, buildEmployeeOptions(employees, dailyEntries))
+
+  assert.deepEqual(analytics.weeks[0].days.map(day => day.key), ['2026-08-03', '2026-08-04'])
+  assert.deepEqual(analytics.weeks[0].days[0].employees.map(employee => employee.name), ['Anna Stolárka', 'Boris Majster'])
+  assert.deepEqual(analytics.weeks[0].days[0].employees[0].entries.map(entry => entry.id), ['D1', 'D2'])
+})
+
 test('prázdna agregácia vracia pokojný nulový tvar', () => {
   assert.deepEqual(buildAnalytics([], []), {
     totals: { minutes: 0, records: 0, employees: 0, projects: 0, activities: 0 },
